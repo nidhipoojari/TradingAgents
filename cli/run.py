@@ -1,5 +1,6 @@
 """Running one analysis from the CLI: build the graph, stream it into the live view, save the report."""
 
+import json
 import os
 import sys
 import time
@@ -372,8 +373,26 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
 
         update_display(layout, stats_handler=stats_handler, start_time=start_time)
 
+    # Keep the run's token and call totals; the live footer is gone once the view closes.
+    usage = {
+        **stats_handler.get_stats(),
+        "llm_provider": config.get("llm_provider"),
+        "quick_think_llm": config.get("quick_think_llm"),
+        "deep_think_llm": config.get("deep_think_llm"),
+        "elapsed_seconds": round(time.time() - start_time, 1),
+    }
+    usage["tokens_total"] = usage["tokens_in"] + usage["tokens_out"]
+    usage_file = results_dir / "token_usage.json"
+    usage_file.write_text(json.dumps(usage, indent=2), encoding="utf-8")
+
     # Post-analysis prompts (outside Live context for clean interaction)
     console.print("\n[bold cyan]Analysis Complete![/bold cyan]\n")
+    console.print(
+        f"[bold]LLM calls:[/bold] {usage['llm_calls']}  [bold]Tool calls:[/bold] {usage['tool_calls']}  "
+        f"[bold]Tokens:[/bold] {usage['tokens_in']:,} in / {usage['tokens_out']:,} out "
+        f"({usage['tokens_total']:,} total)"
+    )
+    console.print(f"[dim]Saved to {usage_file}[/dim]\n")
 
     # A decision nobody can read is not a position. Say so here rather than
     # leaving the run to look like a normal result.
