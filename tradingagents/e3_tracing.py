@@ -11,7 +11,7 @@ import json
 import os
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -19,8 +19,8 @@ from uuid import uuid4
 
 try:
     from langchain_core.callbacks import BaseCallbackHandler
-except ImportError:  # useful error for running outside of TradingAgents environment
-    raise SystemExit("Install the TradingAgents dependencies (langchain-core), then retry.")
+except ImportError as err:  # useful error for running outside of TradingAgents environment
+    raise SystemExit("Install the TradingAgents dependencies (langchain-core), then retry.") from err
 
 
 def _model_name(serialized: dict[str, Any] | None, metadata: dict[str, Any] | None) -> str:
@@ -149,11 +149,11 @@ class E3MetricsCallback(BaseCallbackHandler):
                 "input_tokens_reported": sum(x["input_tokens"] or 0 for x in items),
                 "output_tokens_reported": sum(x["output_tokens"] or 0 for x in items),
                 "missing_usage_events": sum(x["input_tokens"] is None or x["output_tokens"] is None for x in items),
-                "models": sorted(set(x["model"] for x in items)),
+                "models": sorted({x["model"] for x in items}),
             }
         return {
             "schema": "tradingagents-e3-summary-v1",
-            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "created_at_utc": datetime.now(UTC).isoformat(),
             "ticker": ticker,
             "analysis_date": analysis_date,
             "status": status,
@@ -186,6 +186,7 @@ def run(ticker: str, analysis_date: str, output_dir: str = "e3_results") -> Path
 
     from langfuse import get_client
     from langfuse.langchain import CallbackHandler
+
     from tradingagents.default_config import DEFAULT_CONFIG
     from tradingagents.graph.trading_graph import TradingAgentsGraph
 

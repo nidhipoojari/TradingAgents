@@ -2,12 +2,11 @@
 import sys
 import types
 import unittest
-from unittest.mock import patch
-from pathlib import Path
 
 # Stub callback only if langchain_core is unavailable in the test environment.
 try:
     from langchain_core.callbacks import BaseCallbackHandler
+    assert BaseCallbackHandler is not None
 except ImportError:
     core = types.ModuleType("langchain_core")
     callback = types.ModuleType("langchain_core.callbacks")
@@ -16,6 +15,7 @@ except ImportError:
     sys.modules["langchain_core.callbacks"] = callback
 
 from tradingagents.e3_tracing import E3MetricsCallback
+
 
 class DummyResponse:
     llm_output = {"token_usage": {"prompt_tokens": 120, "completion_tokens": 30}}

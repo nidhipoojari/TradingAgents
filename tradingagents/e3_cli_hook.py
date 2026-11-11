@@ -4,12 +4,14 @@ E3_TRACE_ENABLED=1 enables this. Doesn't change E1 routing/agent behavior.
 Run summary is saved on process exit even if an exception escapes the CLI.
 """
 from __future__ import annotations
+
 import atexit
 import json
 import os
 import time
 from pathlib import Path
 from uuid import uuid4
+
 from tradingagents.e3_tracing import E3MetricsCallback
 
 
