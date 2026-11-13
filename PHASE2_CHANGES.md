@@ -28,9 +28,36 @@ TRADINGAGENTS_DEEP_FALLBACK_LLM=gemini-3.5-flash-lite
 **Tested (Nov 13).** Main model set to `gemini-does-not-exist`: 15 calls switched to the backup; the NVDA run finished
 (rating Overweight, 33.4 s). `gemini-3.8-flash` as backup was too slow on the free tier.
 
-## E2: Market-data cache (owner: TBD)
+## E2: Market-data cache (owner: Nidhi + Joe; PR #5)
 
-Not started yet.
+**What it does.** Every data request (prices, indicators, fundamentals, statements, news, insider trades)
+is saved in one SQLite file, `<data_cache_dir>/e2_cache.sqlite`. When an agent asks for the exact same
+past-dated data again, the answer comes from that file instead of Yahoo / SEC.
+Only requests whose dates are all in the past are cached (past data doesn't change); "today" is always
+downloaded fresh. Error answers are never cached. The cache key includes the dates, so there is no look-ahead bias.
+
+**Change from the Phase 1 plan.** We planned SQLite + Parquet. We used SQLite only: the price history for one
+ticker is ~1,250 rows, so Parquet would add a dependency (pyarrow) with no measurable gain, and caching the
+*tool answers* covers all data types, not just prices.
+
+| File | Change |
+| --- | --- |
+| `tradingagents/e2_cache.py` | **New.** `lookup()` / `save()` on a SQLite table keyed by (tool, request); past-dates-only and no-errors rules; hit/miss counters |
+| `tradingagents/dataflows/router.py` | `route_to_vendor()` checks the cache first; original logic moved to `_route_to_vendor_uncached()` |
+| `tradingagents/default_config.py` | New setting `e2_cache_enabled` (default off = old behavior) |
+| `.env.example` | Documents `TRADINGAGENTS_E2_CACHE=true` |
+| `tests/test_e2_cache.py` | **New.** 4 offline tests (repeat comes from cache, other date not reused, today/errors not cached, off = unchanged) |
+| `scripts/e2_benchmark.py` | **New.** Times the 14 data requests of one NVDA analysis: E2 off vs cold vs warm (no LLM calls) |
+
+**How to turn it on.** Add `TRADINGAGENTS_E2_CACHE=true` to `.env`.
+
+**Tested (Nov 13, NVDA 2026-10-23, 14 data requests, each run in a fresh process; 2 repeats).**
+
+| Run | Data-load time | Cache hit rate |
+| --- | --- | --- |
+| E2 off (Phase 1) | 2.17–2.59 s | n/a |
+| E2 on, cold cache | 1.72–2.28 s | 0% |
+| E2 on, warm cache | 0.44–0.50 s | 92.9% (13/14; the miss is Yahoo news, which failed and is never cached) |
 
 ## E3: Tracing + cost monitoring (owner: Shubhan; PR #1)
 
