@@ -14,7 +14,8 @@ from tradingagents.dataflows.config import run_config, run_config_context, set_c
 from tradingagents.dataflows.date_window import get_current_date, is_historical
 from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.llm_clients import create_tier_client, tier_provider
+from tradingagents.e1_routing import build_model
+from tradingagents.llm_clients import tier_provider
 from tradingagents.memory import TradingMemoryLog, settlement
 from tradingagents.memory.reflection import Reflector
 from tradingagents.reporting import write_report_tree
@@ -75,9 +76,9 @@ class TradingAgentsGraph:
         os.makedirs(self.config["data_cache_dir"], exist_ok=True)
         os.makedirs(self.config["results_dir"], exist_ok=True)
 
-        extra = {"callbacks": self.callbacks} if self.callbacks else {}
-        self.deep_thinking_llm = create_tier_client(self.config, "deep", **extra).get_llm()
-        self.quick_thinking_llm = create_tier_client(self.config, "quick", **extra).get_llm()
+        # E1: build each tier's model, with a backup model if one is set in .env
+        self.deep_thinking_llm = build_model(self.config, "deep", self.callbacks)
+        self.quick_thinking_llm = build_model(self.config, "quick", self.callbacks)
 
         self.memory_log = TradingMemoryLog(self.config)
 
@@ -266,6 +267,8 @@ class TradingAgentsGraph:
             "deep_think_llm": cfg.get("deep_think_llm"),
             "quick_think_provider": tier_provider(cfg, "quick") if cfg.get("llm_provider") else None,
             "quick_think_llm": cfg.get("quick_think_llm"),
+            "deep_fallback_llm": cfg.get("deep_fallback_llm"),
+            "quick_fallback_llm": cfg.get("quick_fallback_llm"),
             "analysts": list(self.selected_analysts),
             "max_debate_rounds": cfg.get("max_debate_rounds"),
             "max_risk_discuss_rounds": cfg.get("max_risk_discuss_rounds"),
