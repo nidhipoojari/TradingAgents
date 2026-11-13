@@ -1,0 +1,11 @@
+agent,llm_calls,latency_ms,input_tokens,output_tokens,estimated_cost_usd,errors
+Aggressive Analyst,1,6336.94,1358,487,0.00107,0
+Bear Researcher,1,8791.82,2754,972,0.002146,0
+Bull Researcher,1,4024.09,1075,838,0.001526,0
+Conservative Analyst,1,49454.13,2303,539,0.001384,0
+Memory Log,1,4060.52,517,106,0.000288,0
+Neutral Analyst,1,3725.82,3345,631,0.001783,0
+Portfolio Manager,1,2179.79,2595,318,0.001126,0
+Research Manager,1,4392.85,2243,328,0.001053,0
+Trader,1,2744.82,1404,153,0.00058,0
+agent,4,6796.26,24035,936,0.007413,0

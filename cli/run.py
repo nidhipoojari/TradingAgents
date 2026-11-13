@@ -115,6 +115,14 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
 
     stats_handler = StatsCallbackHandler()
 
+    # E3: Langfuse tracing and local metrics
+    from tradingagents.e3_cli_hook import E3Session
+    e3 = E3Session.from_env(
+        ticker=selections["ticker"],
+        analysis_date=selections["analysis_date"],
+    )
+    active_callbacks = [stats_handler] + e3.callbacks
+
     # Normalize analyst selection to predefined order (selection is a 'set', order is fixed)
     selected_set = {analyst.value for analyst in selections["analysts"]}
     selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set]
@@ -125,7 +133,7 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
         selected_analyst_keys,
         config=config,
         debug=True,
-        callbacks=[stats_handler],
+        callbacks=active_callbacks,
     )
 
     message_buffer.init_for_analysis(selected_analyst_keys)
@@ -222,7 +230,7 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
         )
         # Pass callbacks to graph config for tool execution tracking
         # (LLM tracking is handled separately via LLM constructor)
-        args = graph.propagator.get_graph_args(callbacks=[stats_handler])
+        args = graph.propagator.get_graph_args(callbacks=active_callbacks)
 
         # Recompile with a checkpointer and inject the thread_id so --checkpoint
         # actually saves and resumes on the CLI path (#1249); a no-op when
@@ -406,6 +414,11 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
 
     _offer_reports(final_state, graph, selections["ticker"],
                    save=flags.get("save"), show=flags.get("show"), html=flags.get("html"))
+
+    # E3: record successful completion and portfolio decision
+    e3.mark_completed(
+        decision=final_state.get("final_trade_decision")
+    )
 
 
 def _yes(question: str) -> bool:
