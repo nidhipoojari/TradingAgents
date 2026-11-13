@@ -1,4 +1,5 @@
 """E1 tests: routing table + backup model. Offline, no API calls."""
+import pytest
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
 from tradingagents import e1_routing
@@ -59,3 +60,14 @@ def test_no_backup_means_original_behavior(monkeypatch, tmp_path):
 
     assert build_model(config, "quick") is main
     assert seen == ["main-model"]
+
+
+def test_backup_failure_is_logged(monkeypatch, tmp_path):
+    seen = []
+    _fake_clients(monkeypatch, BrokenModel(responses=["x"]), BrokenModel(responses=["y"]), seen)
+    config = {"quick_think_llm": "main-model", "quick_fallback_llm": "backup-model",
+              "results_dir": str(tmp_path)}
+
+    with pytest.raises(RuntimeError):
+        build_model(config, "quick").invoke("hi")
+    assert "BACKUP backup-model also failed" in (tmp_path / "e1_fallback_log.txt").read_text()
