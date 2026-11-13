@@ -11,6 +11,9 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_LLM_PROVIDER":         "llm_provider",
     "TRADINGAGENTS_DEEP_THINK_LLM":       "deep_think_llm",
     "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
+    # E1: backup model per tier (empty = no backup)
+    "TRADINGAGENTS_DEEP_FALLBACK_LLM":    "deep_fallback_llm",
+    "TRADINGAGENTS_QUICK_FALLBACK_LLM":   "quick_fallback_llm",
     "TRADINGAGENTS_DEEP_THINK_PROVIDER":       "deep_think_provider",
     "TRADINGAGENTS_QUICK_THINK_PROVIDER":      "quick_think_provider",
     "TRADINGAGENTS_DEEP_THINK_BACKEND_URL":    "deep_think_backend_url",
@@ -92,6 +95,9 @@ def build_default_config() -> dict:
         "llm_provider": "openai",
         "deep_think_llm": "gpt-6-sol",
         "quick_think_llm": "gpt-6-luna",
+        # E1: backup models, used when the main model fails (None = no backup)
+        "deep_fallback_llm": None,
+        "quick_fallback_llm": None,
         # When None, each provider's client falls back to its own default endpoint
         # (api.openai.com for OpenAI, generativelanguage.googleapis.com for Gemini, ...).
         # The CLI overrides this per provider when the user picks one. Keeping a

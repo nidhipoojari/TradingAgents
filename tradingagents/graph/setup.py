@@ -22,6 +22,7 @@ from tradingagents.agents import (
 )
 from tradingagents.agents.analysts.turn import WRAP_UP
 from tradingagents.agents.state import AgentState
+from tradingagents.e1_routing import pick_model
 
 from .analyst_execution import build_analyst_execution_plan
 from .conditional_logic import ConditionalLogic
@@ -106,6 +107,10 @@ class GraphSetup:
         self.conditional_logic = conditional_logic
         self.max_tool_rounds = max_tool_rounds
 
+    def llm_for(self, agent: str) -> Any:
+        """E1: the model this agent uses, looked up in the routing table."""
+        return pick_model(agent, self.quick_thinking_llm, self.deep_thinking_llm)
+
     def setup_graph(
         self, selected_analysts=("market", "social", "news", "fundamentals"), memory_node=None
     ):
@@ -123,21 +128,21 @@ class GraphSetup:
         plan = build_analyst_execution_plan(selected_analysts)
 
         analyst_factories = {
-            "market": lambda: create_market_analyst(self.quick_thinking_llm),
-            "social": lambda: create_sentiment_analyst(self.quick_thinking_llm),
-            "news": lambda: create_news_analyst(self.quick_thinking_llm),
-            "fundamentals": lambda: create_fundamentals_analyst(self.quick_thinking_llm),
+            "market": lambda: create_market_analyst(self.llm_for("market_analyst")),
+            "social": lambda: create_sentiment_analyst(self.llm_for("social_analyst")),
+            "news": lambda: create_news_analyst(self.llm_for("news_analyst")),
+            "fundamentals": lambda: create_fundamentals_analyst(self.llm_for("fundamentals_analyst")),
         }
 
-        bull_researcher_node = create_bull_researcher(self.quick_thinking_llm)
-        bear_researcher_node = create_bear_researcher(self.quick_thinking_llm)
-        research_manager_node = create_research_manager(self.deep_thinking_llm)
-        trader_node = create_trader(self.quick_thinking_llm)
+        bull_researcher_node = create_bull_researcher(self.llm_for("bull_researcher"))
+        bear_researcher_node = create_bear_researcher(self.llm_for("bear_researcher"))
+        research_manager_node = create_research_manager(self.llm_for("research_manager"))
+        trader_node = create_trader(self.llm_for("trader"))
 
-        aggressive_analyst = create_aggressive_debator(self.quick_thinking_llm)
-        neutral_analyst = create_neutral_debator(self.quick_thinking_llm)
-        conservative_analyst = create_conservative_debator(self.quick_thinking_llm)
-        portfolio_manager_node = create_portfolio_manager(self.deep_thinking_llm)
+        aggressive_analyst = create_aggressive_debator(self.llm_for("aggressive_analyst"))
+        neutral_analyst = create_neutral_debator(self.llm_for("neutral_analyst"))
+        conservative_analyst = create_conservative_debator(self.llm_for("conservative_analyst"))
+        portfolio_manager_node = create_portfolio_manager(self.llm_for("portfolio_manager"))
 
         workflow = StateGraph(AgentState)
 
