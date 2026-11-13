@@ -38,9 +38,13 @@ def _model_name(serialized: dict[str, Any] | None, metadata: dict[str, Any] | No
 
 def _agent_name(metadata: dict[str, Any] | None) -> str:
     meta = metadata or {}
-    for key in ("langgraph_node", "agent_name", "agent", "node"):
-        if meta.get(key):
-            return str(meta[key])
+    explicit = meta.get("agent_name")
+    if explicit and str(explicit).strip().lower() != "agent":
+        return str(explicit)
+    for key in ("langgraph_node", "agent", "node"):
+        value = meta.get(key)
+        if value and str(value).strip().lower() != "agent":
+            return str(value)
     return "unattributed"
 
 

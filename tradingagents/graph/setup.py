@@ -66,7 +66,7 @@ def _analyst_graph(spec, agent, max_tool_rounds: int):
     graph.add_edge(START, "agent")
     if not spec.tools:
         graph.add_edge("agent", END)
-        return graph.compile()
+        return graph.compile().with_config(metadata={"agent_name": spec.agent_node})
 
     def calls(messages):
         return [call["name"] for m in messages for call in (getattr(m, "tool_calls", None) or [])]
@@ -88,7 +88,7 @@ def _analyst_graph(spec, agent, max_tool_rounds: int):
     graph.add_conditional_edges("agent", _tools_or_done, ["tools", END])
     graph.add_conditional_edges("tools", more_or_wrap_up, ["agent", "wrap_up"])
     graph.add_edge("wrap_up", END)
-    return graph.compile()
+    return graph.compile().with_config(metadata={"agent_name": spec.agent_node})
 
 
 class GraphSetup:
