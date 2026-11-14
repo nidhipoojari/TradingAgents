@@ -1,0 +1,10 @@
+
+Bear Analyst: Look, I appreciate the enthusiasm, but calling late-stage momentum a "solid foundation" is a classic way to get caught holding the bag at the absolute peak. You're looking at these indicators through rose-colored glasses, ignoring what they're actually telling us about the exhaustion creeping into **AAPL**.
+
+Let's talk about your beloved technicals. You mentioned the stock is closing strong at **$347.47** and brushing up against the upper Bollinger Band at **$349.56**. Do you know what happens when an asset repeatedly kisses the outer edge of its volatility envelope while trading nearly $20 above its 50-day SMA ($329.22) and over $50 above its 200-day SMA ($293.88)? It’s called being overextended. Trees don't grow to the sky, and the wider that gap gets between the price and its moving averages, the more violent the eventual snap-back to reality will be. 
+
+And don't brush off an RSI of **63.93** just because it hasn't technically breached the magical 70 overbought threshold yet. We are sitting right on the doorstep of extreme overbought territory with a momentum indicator that notoriously lags right before a sharp rollover. Combined with a MACD reading where the line and signal are tightly converged at **4.37** and **4.06**, the upward steam is visibly losing pressure. 
+
+You call it "orderly price discovery" with an ATR of **$6.41**, but I call it dangerous complacency. Markets pricing in absolute perfection leave zero margin for error. The moment any macro headwind, supply chain hiccup, or softer-than-expected consumer demand print hits, this "unstoppable trend" can unwind in a heartbeat. 
+
+Chasing **AAPL** right here, right now, at the upper limits of its Bollinger bands isn't investing—it's momentum gambling. I'll happily stay on the sidelines and wait for the gravity check that you're choosing to ignore.

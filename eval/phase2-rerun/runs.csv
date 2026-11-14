@@ -1,0 +1,3 @@
+plan,run_id,ticker,tracing,exit_code,wall_seconds,llm_calls,tool_calls,tokens_in,tokens_out,tokens_total,cli_elapsed_seconds,cost_usd,e2_hits,e2_misses,e2_hit_rate_pct,e3_cost_usd,e3_llm_errors,e3_models,e3_llm_busy_seconds,e3_before_first_llm_seconds,e3_between_llm_seconds,e3_after_last_llm_seconds,rating,e1_fallback_lines,success
+phase2-rerun,01_AAPL,AAPL,True,0,27.109,11,3,20781,4567,25348,23.9,0.017652,0,5,0.0,,1,"gemini-3.1-flash-lite,gemini-3.5-flash-lite",22.721,0.837,0.679,0.023,Overweight,1,True
+phase2-rerun,02_MSFT,MSFT,True,0,28.65,10,3,23656,6557,30213,25.2,0.023489,0,5,0.0,0.023489,0,gemini-3.5-flash-lite,24.04,0.812,0.605,0.022,Hold,0,True
