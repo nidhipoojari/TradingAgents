@@ -62,10 +62,11 @@ def _analyst_graph(spec, agent, max_tool_rounds: int):
     """
     output = TypedDict(f"{spec.key.capitalize()}Report", {spec.report_key: str})
     graph = StateGraph(AgentState, output_schema=output)
-    graph.add_node("agent", agent)
-    graph.add_edge(START, "agent")
+    analyst_node = spec.agent_node
+    graph.add_node(analyst_node, agent)
+    graph.add_edge(START, analyst_node)
     if not spec.tools:
-        graph.add_edge("agent", END)
+        graph.add_edge(analyst_node, END)
         return graph.compile()
 
     def calls(messages):
@@ -75,7 +76,7 @@ def _analyst_graph(spec, agent, max_tool_rounds: int):
         return sum(1 for m in messages if getattr(m, "tool_calls", None))
 
     def more_or_wrap_up(state) -> str:
-        return "wrap_up" if rounds(state["messages"]) >= max_tool_rounds else "agent"
+        return "wrap_up" if rounds(state["messages"]) >= max_tool_rounds else analyst_node
 
     def wrap_up(state):
         repeated = ", ".join(f"{name} x{n}" for name, n in Counter(calls(state["messages"])).most_common())
@@ -85,8 +86,8 @@ def _analyst_graph(spec, agent, max_tool_rounds: int):
 
     graph.add_node("tools", ToolNode(list(spec.tools)))
     graph.add_node("wrap_up", wrap_up)
-    graph.add_conditional_edges("agent", _tools_or_done, ["tools", END])
-    graph.add_conditional_edges("tools", more_or_wrap_up, ["agent", "wrap_up"])
+    graph.add_conditional_edges(analyst_node, _tools_or_done, ["tools", END])
+    graph.add_conditional_edges("tools", more_or_wrap_up, [analyst_node, "wrap_up"])
     graph.add_edge("wrap_up", END)
     return graph.compile()
 

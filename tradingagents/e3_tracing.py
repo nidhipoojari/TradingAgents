@@ -125,18 +125,33 @@ class E3MetricsCallback(BaseCallbackHandler):
             observations = list(self.records)
         # Optional pricing is in USD per 1 million input/output tokens.
         # An estimate is shown only when EVERY observed call has usage and known pricing.
+        # Calculate costs for calls with reported token usage.
         cost_total = 0.0
         cost_complete = bool(observations) and bool(pricing)
+        priced_calls = 0
+        unpriced_calls = 0
+
         for event in observations:
             entry = (pricing or {}).get(event["model"])
-            if (not entry or event["input_tokens"] is None or
-                    event["output_tokens"] is None or
-                    "input_per_million_usd" not in entry or
-                    "output_per_million_usd" not in entry):
+
+            if (
+                not entry
+                or event["input_tokens"] is None
+                or event["output_tokens"] is None
+                or "input_per_million_usd" not in entry
+                or "output_per_million_usd" not in entry
+            ):
                 cost_complete = False
+                unpriced_calls += 1
                 continue
-            cost_total += (event["input_tokens"] * entry["input_per_million_usd"] +
-                           event["output_tokens"] * entry["output_per_million_usd"]) / 1_000_000
+
+            cost_total += (
+                event["input_tokens"] * entry["input_per_million_usd"]
+                + event["output_tokens"] * entry["output_per_million_usd"]
+            ) / 1_000_000
+
+            priced_calls += 1
+
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for record in observations:
             grouped[record["agent"]].append(record)
@@ -164,6 +179,10 @@ class E3MetricsCallback(BaseCallbackHandler):
             "observed_llm_errors": sum(x["error"] is not None for x in observations),
             "per_agent": per_agent,
             "estimated_cost_usd": round(cost_total, 6) if cost_complete else None,
+            "known_usage_cost_usd": round(cost_total, 6) if priced_calls else None,
+            "cost_complete": cost_complete,
+            "priced_llm_calls": priced_calls,
+            "unpriced_llm_calls": unpriced_calls,
             "cost_note": ("Estimate from supplied model pricing and reported tokens; does not include tools or infrastructure."
                           if cost_complete else "Not calculated: supply pricing for every model and ensure every LLM callback includes token usage."),
             "limitations": [

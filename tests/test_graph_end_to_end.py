@@ -321,7 +321,15 @@ def test_past_decisions_settle_alongside_the_analysts(tmp_path, monkeypatch, off
 
     reflections = [c for c in model.seen if c[0] == "Memory Log"]
     assert len(reflections) == 1                # settled once, inside the run
-    analyst_turns = [c for c in model.seen if c[0] == "agent"]
+    analyst_turns = [
+    c for c in model.seen
+    if c[0] in {
+        "Market Analyst",
+        "Sentiment Analyst",
+        "News Analyst",
+        "Fundamentals Analyst",
+    }
+]
     assert reflections[0][2] < max(c[3] for c in analyst_turns), "settled before the analysts, not alongside"
     settled = next(e for e in graph.memory_log.load_entries() if e["date"] == "2025-12-31")
     assert not settled["pending"]
