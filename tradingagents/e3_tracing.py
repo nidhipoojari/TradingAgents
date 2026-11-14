@@ -189,7 +189,6 @@ class E3MetricsCallback(BaseCallbackHandler):
                 for event in observations
             ],
             "per_agent": per_agent,
-            "per_agent": per_agent,
             "estimated_cost_usd": round(cost_total, 6) if cost_complete else None,
             "known_usage_cost_usd": round(cost_total, 6) if priced_calls else None,
             "cost_complete": cost_complete,

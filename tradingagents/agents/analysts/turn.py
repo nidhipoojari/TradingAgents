@@ -3,6 +3,7 @@
 import json
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
 from tradingagents.agents.analysts.compact_context import compact_market_messages
 
 WRAP_UP = (
