@@ -1,4 +1,4 @@
 run,requests,seconds,cache_hits,cache_misses,hit_rate_pct
-1. E2 off (Phase 1),14,2.165,0,0,0.0
-"2. E2 on, cold cache",14,1.722,0,14,0.0
-"3. E2 on, warm cache",14,0.439,13,1,92.9
+1. E2 off (Phase 1),14,3.69,0,0,0.0
+"2. E2 on, cold cache",14,2.668,0,14,0.0
+"3. E2 on, warm cache",14,0.003,14,0,100.0

@@ -51,13 +51,17 @@ ticker is ~1,250 rows, so Parquet would add a dependency (pyarrow) with no measu
 
 **How to turn it on.** Add `TRADINGAGENTS_E2_CACHE=true` to `.env`.
 
-**Tested (Nov 13, NVDA 2026-10-23, 14 data requests, each run in a fresh process; 2 repeats).**
+**Tested (Nov 13, NVDA 2026-10-23, 14 data requests, each run in a fresh process; 3 repeats).**
 
 | Run | Data-load time | Cache hit rate |
 | --- | --- | --- |
-| E2 off (Phase 1) | 2.17–2.59 s | n/a |
-| E2 on, cold cache | 1.72–2.28 s | 0% |
-| E2 on, warm cache | 0.44–0.50 s | 92.9% (13/14; the miss is Yahoo news, which failed and is never cached) |
+| E2 off (Phase 1) | 2.17–3.69 s | n/a |
+| E2 on, cold cache | 1.72–2.67 s | 0% |
+| E2 on, warm cache | 0.003–0.50 s | 92.9–100% |
+
+Main result (latest run, `results/phase2/e2_benchmark.csv`): 3.690 s → 0.003 s, 14/14 hits (100%).
+In the two earlier runs Yahoo news failed; failed answers are never cached, so that one request was
+downloaded again (13/14 hits, 0.44–0.50 s).
 
 ## E3: Tracing + cost monitoring (owner: Shubhan; PR #1)
 
