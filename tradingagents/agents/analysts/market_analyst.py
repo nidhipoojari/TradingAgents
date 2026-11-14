@@ -74,7 +74,10 @@ Write a very detailed and nuanced report of the trends you observe. Provide spec
         prompt = prompt.partial(current_date=current_date)
         prompt = prompt.partial(instrument_context=instrument_context)
 
-        result, report = take_turn(prompt, llm, TOOLS, state["messages"])
+        result, report = take_turn(
+            prompt, llm, TOOLS, state["messages"],
+            compact_market_context=True,
+        )
 
         return {
             "messages": [result],
