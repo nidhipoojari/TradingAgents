@@ -376,6 +376,7 @@ class TradingAgentsGraph:
                    checkpoint_thread_id: str | None = None, portfolio=None):
         """Execute the graph and write the resulting state to disk and memory log."""
         init_agent_state = self.create_run_state(company_name, trade_date, asset_type, portfolio)
+        # E3: pass the tracing callbacks (Langfuse + metrics) into every graph step
         args = self.propagator.get_graph_args(callbacks=getattr(self, 'callbacks', []))
 
         # Inject the checkpoint thread_id (from checkpoint_scope) so the same

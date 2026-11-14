@@ -59,18 +59,23 @@ def pick_model(agent: str, quick_llm, deep_llm):
 
 
 class FallbackLogger(BaseCallbackHandler):
-    """Writes one line to the log file each time the main model fails."""
+    """Writes one line to the log file each time the main (or backup) model fails."""
 
-    def __init__(self, tier: str, main_model: str, backup_model: str, log_file: Path):
+    def __init__(self, tier: str, main_model: str, backup_model: str, log_file: Path,
+                 is_backup: bool = False):
         self.tier = tier
         self.main_model = main_model
         self.backup_model = backup_model
         self.log_file = log_file
+        self.is_backup = is_backup
 
     def on_llm_error(self, error: BaseException, **kwargs) -> None:
-        line = (f"{datetime.now():%Y-%m-%d %H:%M:%S} | {self.tier} tier | "
-                f"{self.main_model} failed ({type(error).__name__}: {str(error)[:120]}) "
-                f"-> switching to {self.backup_model}")
+        reason = f"{type(error).__name__}: {str(error)[:120]}"
+        if self.is_backup:
+            what = f"BACKUP {self.backup_model} also failed ({reason}) -> run stops"
+        else:
+            what = f"{self.main_model} failed ({reason}) -> switching to {self.backup_model}"
+        line = f"{datetime.now():%Y-%m-%d %H:%M:%S} | {self.tier} tier | {what}"
         logger.warning("E1 fallback: %s", line)
         try:
             with self.log_file.open("a", encoding="utf-8") as f:
@@ -98,9 +103,11 @@ def build_model(config: dict, tier: str, callbacks: list | None = None):
     main_llm = create_tier_client(main_config, tier, callbacks=callbacks + [switch_logger]).get_llm()
 
     # Backup model: same provider and settings, different model name.
+    # It gets a logger too, so a failing backup shows up in the log file
+    # (LangChain re-raises the MAIN model's error when both fail).
     backup_config = {**config, f"{tier}_think_llm": backup_name}
-    extra = {"callbacks": callbacks} if callbacks else {}
-    backup_llm = create_tier_client(backup_config, tier, **extra).get_llm()
+    backup_logger = FallbackLogger(tier, main_name, backup_name, log_file, is_backup=True)
+    backup_llm = create_tier_client(backup_config, tier, callbacks=callbacks + [backup_logger]).get_llm()
 
     # LangChain's built-in fallback: if main_llm raises an error, call backup_llm.
     return main_llm.with_fallbacks([backup_llm])

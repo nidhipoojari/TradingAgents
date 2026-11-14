@@ -1,5 +1,6 @@
 import logging
 
+from tradingagents import e2_cache
 from tradingagents.dataflows.config import get_config
 from tradingagents.dataflows.errors import (
     NoMarketDataError,
@@ -198,6 +199,19 @@ def no_data_available(error: NoMarketDataError) -> str:
 
 
 def route_to_vendor(method: str, *args, **kwargs):
+    """Route a data request to a vendor; E2 answers repeats from the local cache."""
+    # E2: answer from the SQLite cache when this exact past request was seen before
+    if e2_cache.is_enabled():
+        cached = e2_cache.lookup(method, args, kwargs)
+        if cached is not None:
+            return cached
+        result = _route_to_vendor_uncached(method, *args, **kwargs)
+        e2_cache.save(method, args, kwargs, result)
+        return result
+    return _route_to_vendor_uncached(method, *args, **kwargs)
+
+
+def _route_to_vendor_uncached(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
     category = get_category_for_method(method)
     vendor_config = get_vendor(category, method)

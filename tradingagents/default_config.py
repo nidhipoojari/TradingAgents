@@ -13,6 +13,8 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_QUICK_THINK_LLM":      "quick_think_llm",
     # E1: backup model per tier (empty = no backup)
     "TRADINGAGENTS_DEEP_FALLBACK_LLM":    "deep_fallback_llm",
+    # E2: SQLite cache for past-dated data requests (true/false)
+    "TRADINGAGENTS_E2_CACHE":             "e2_cache_enabled",
     "TRADINGAGENTS_QUICK_FALLBACK_LLM":   "quick_fallback_llm",
     "TRADINGAGENTS_DEEP_THINK_PROVIDER":       "deep_think_provider",
     "TRADINGAGENTS_QUICK_THINK_PROVIDER":      "quick_think_provider",
@@ -98,6 +100,8 @@ def build_default_config() -> dict:
         # E1: backup models, used when the main model fails (None = no backup)
         "deep_fallback_llm": None,
         "quick_fallback_llm": None,
+        # E2: reuse past-dated data from <data_cache_dir>/e2_cache.sqlite (off = old behavior)
+        "e2_cache_enabled": False,
         # When None, each provider's client falls back to its own default endpoint
         # (api.openai.com for OpenAI, generativelanguage.googleapis.com for Gemini, ...).
         # The CLI overrides this per provider when the user picks one. Keeping a
