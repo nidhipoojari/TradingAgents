@@ -3,6 +3,7 @@
 import json
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from tradingagents.agents.analysts.compact_context import compact_market_messages
 
 WRAP_UP = (
     "You have used every tool round this report allows. Write your final report "
@@ -10,20 +11,24 @@ WRAP_UP = (
 )
 
 
-def take_turn(prompt, llm, tools, messages):
+def take_turn(prompt, llm, tools, messages, compact_market_context=False):
     """The analyst's reply and its report, which stays empty while it calls tools.
 
     Told to wrap up, it answers without tools: a model offered tools may call one
     whatever it is told. Its earlier calls and their results reach it as text,
     since a provider may refuse a history holding tool calls when none are bound.
     """
+    model_messages = (
+        compact_market_messages(messages)
+        if compact_market_context else messages
+    )
     if messages and isinstance(messages[-1], HumanMessage) and messages[-1].content == WRAP_UP:
         # The prompt lists the tools it offers; a model told of tools it cannot
         # call may still try, and some providers then answer with nothing.
         prompt = prompt.partial(tool_names="none; your tool rounds are spent")
-        result = (prompt | llm).invoke(_as_text(messages))
+        result = (prompt | llm).invoke(_as_text(model_messages))
         return result, result.content
-    result = (prompt | llm.bind_tools(tools)).invoke(messages)
+    result = (prompt | llm.bind_tools(tools)).invoke(model_messages)
     return result, "" if result.tool_calls else result.content
 
 

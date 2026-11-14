@@ -177,6 +177,18 @@ class E3MetricsCallback(BaseCallbackHandler):
             "wall_time_seconds": round(wall_time_seconds, 3),
             "observed_llm_calls": len(observations),
             "observed_llm_errors": sum(x["error"] is not None for x in observations),
+            "per_call": [
+                {
+                    "agent": event["agent"],
+                    "model": event["model"],
+                    "latency_ms": event["latency_ms"],
+                    "input_tokens": event["input_tokens"],
+                    "output_tokens": event["output_tokens"],
+                    "had_error": event["error"] is not None,
+                }
+                for event in observations
+            ],
+            "per_agent": per_agent,
             "per_agent": per_agent,
             "estimated_cost_usd": round(cost_total, 6) if cost_complete else None,
             "known_usage_cost_usd": round(cost_total, 6) if priced_calls else None,

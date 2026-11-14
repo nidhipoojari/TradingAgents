@@ -169,11 +169,7 @@ def get_stock_stats_indicators_window(
 
             # Look up the indicator value for this date
             if date_str in indicator_data:
-                indicator_value = indicator_data[date_str]
-            else:
-                indicator_value = "N/A: Not a trading day (weekend or holiday)"
-
-            date_values.append((date_str, indicator_value))
+                date_values.append((date_str, indicator_data[date_str]))
             current_dt = current_dt - relativedelta(days=1)
 
         ind_string = ""

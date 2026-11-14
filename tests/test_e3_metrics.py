@@ -77,3 +77,32 @@ def test_market_analyst_attribution():
     assert "Market Analyst" in result["per_agent"]
     assert "agent" not in result["per_agent"]
     assert result["observed_llm_calls"] == 1
+
+
+def test_per_call_metrics_are_exported():
+    callback = E3MetricsCallback()
+
+    callback._start(
+        serialized={"kwargs": {"model": "gemini-3.5-flash-lite"}},
+        run_id="market-call-1",
+        metadata={"langgraph_node": "Market Analyst"},
+    )
+
+    callback._finish(
+        run_id="market-call-1",
+        input_tokens=1000,
+        output_tokens=100,
+    )
+
+    result = callback.summary(
+        ticker="NVDA",
+        analysis_date="2026-10-23",
+        status="success",
+        wall_time_seconds=1.0,
+    )
+
+    assert len(result["per_call"]) == 1
+    assert result["per_call"][0]["agent"] == "Market Analyst"
+    assert result["per_call"][0]["input_tokens"] == 1000
+    assert result["per_call"][0]["output_tokens"] == 100
+    assert result["per_call"][0]["had_error"] is False
