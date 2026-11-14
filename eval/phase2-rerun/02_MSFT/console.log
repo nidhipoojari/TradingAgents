@@ -1,0 +1,47 @@
+╭────────────────────────── Welcome to TradingAgents ──────────────────────────╮
+│                                                                              │
+│                                                                              │
+│    ______               ___             ___                    __            │
+│   /_  __/________ _____/ (_)___  ____ _/   | ____ ____  ____  / /______      │
+│    / / / ___/ __ `/ __  / / __ \/ __ `/ /| |/ __ `/ _ \/ __ \/ __/ ___/      │
+│   / / / /  / /_/ / /_/ / / / / / /_/ / ___ / /_/ /  __/ / / / /_(__  )       │
+│  /_/ /_/   \__,_/\__,_/_/_/ /_/\__, /_/  |_\__, /\___/_/ /_/\__/____/        │
+│                               /____/      /____/                             │
+│                                                                              │
+│  TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI           │
+│                                                                              │
+│  Workflow Steps:                                                             │
+│  I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management →   │
+│  V. Portfolio Management                                                     │
+│                                                                              │
+│  Built by [Tauric Research](https://github.com/TauricResearch)               │
+│                                                                              │
+╰──────────────── Multi-Agents LLM Financial Trading Framework ────────────────╯
+
+
+✓ Ticker from --ticker: MSFT
+✓ Analysis date from --date: 2026-10-23
+✓ Output language from environment: English
+Selected analysts: market
+✓ Research depth from environment: 1 debate / 1 risk rounds
+✓ LLM provider from environment: google
+✓ Backend URL: None
+✓ Thinking agents from environment: quick=gemini-3.5-flash-lite, 
+deep=gemini-3.5-flash-lite
+
+Analysis Complete!
+
+LLM calls: 10  Tool calls: 3  Tokens: 23,656 in / 6,557 out (30,213 total)
+Saved to /Users/nidhi/Documents/Fall 2026/Courses/SENG 691-Agentic 
+AI/Project/TradingAgents/eval/phase2-rerun/02_MSFT/results/MSFT/2026-10-23/token
+_usage.json
+
+Analyst wall time: Market 6.65s
+
+✓ Report saved to: /Users/nidhi/Documents/Fall 2026/Courses/SENG 691-Agentic 
+AI/Project/TradingAgents/eval/phase2-rerun/02_MSFT/results/reports/MSFT_20261114
+_183439
+  Complete report: complete_report.md
+  HTML report: complete_report.html
+
+E3 metrics saved: /Users/nidhi/Documents/Fall 2026/Courses/SENG 691-Agentic AI/Project/TradingAgents/eval/phase2-rerun/02_MSFT/e3/MSFT_2026-10-23_3da472b3_e3.json
