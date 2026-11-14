@@ -29,6 +29,8 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
     "TRADINGAGENTS_TEMPERATURE":          "temperature",
     "TRADINGAGENTS_LLM_MAX_RETRIES":      "llm_max_retries",
+    "TRADINGAGENTS_LLM_BACKUP_MAX_RETRIES": "llm_backup_max_retries",
+    "TRADINGAGENTS_LLM_TIMEOUT":          "llm_timeout",
     "TRADINGAGENTS_MAX_TOKENS":           "max_tokens",
     # Provider-specific reasoning/thinking knobs (None = each provider's own
     # default). Settable here for non-interactive runs; the CLI also offers an
@@ -73,7 +75,13 @@ def _apply_env_overrides(config: dict) -> dict:
         if raw is None or raw == "":
             continue
         try:
-            config[key] = _coerce(raw, config.get(key))
+            reference = (
+                0 if key == "llm_backup_max_retries"
+                else config.get(key)
+            )
+            config[key] = _coerce(raw, reference)
+            if key == "llm_backup_max_retries" and config[key] < 0:
+                raise ValueError("backup retries must be >= 0")
         except ValueError as exc:
             raise ValueError(f"Invalid value for {env_var}: {exc}") from exc
     return config
@@ -95,6 +103,8 @@ def build_default_config() -> dict:
         "memory_log_max_entries": None,
         # LLM settings
         "llm_provider": "openai",
+        "llm_timeout": None,
+        "llm_backup_max_retries": None,
         "deep_think_llm": "gpt-6-sol",
         "quick_think_llm": "gpt-6-luna",
         # E1: backup models, used when the main model fails (None = no backup)

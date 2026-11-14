@@ -118,6 +118,21 @@ def build_llm_kwargs(config: dict) -> dict[str, Any]:
     if temperature is not None and temperature != "":
         kwargs["temperature"] = float(temperature)
 
+    # Optional per-request timeout, in seconds.
+    timeout = config.get("llm_timeout")
+    if timeout is not None and timeout != "":
+        import math
+
+        if isinstance(timeout, bool):
+            raise ValueError("llm_timeout must be a positive number")
+        try:
+            seconds = float(timeout)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("llm_timeout must be a positive number") from exc
+        if not math.isfinite(seconds) or seconds <= 0:
+            raise ValueError("llm_timeout must be a positive finite number")
+        kwargs["timeout"] = seconds
+
     # SDK retry budget is cross-provider. Forward it only when explicitly set
     # so each provider keeps its own default (usually 2) otherwise (#1091).
     max_retries = config.get("llm_max_retries")

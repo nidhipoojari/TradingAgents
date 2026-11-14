@@ -47,10 +47,10 @@ def get_indicators(
     trade_date: Annotated[str, InjectedState("trade_date")] = "",
 ) -> str:
     """
-    Retrieve a single technical indicator for the instrument under analysis.
+    Retrieve one or more technical indicators for the instrument under analysis.
     Uses the configured technical_indicators vendor.
     Args:
-        indicator (str): A single technical indicator name, e.g. 'rsi', 'macd'. Call this tool once per indicator.
+        indicator (str): One indicator name or comma-separated names, e.g. 'close_50_sma,rsi,atr,vwma'. Use one call for multiple independent indicators.
         curr_date (str): The current trading date you are trading on, YYYY-mm-dd
         look_back_days (int): How many days to look back, default is 30
     Returns:

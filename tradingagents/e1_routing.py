@@ -49,7 +49,7 @@ ROUTING_TABLE = {
 
 # When a backup exists, try the main model only this many extra times
 # before switching (the default is 6 retries, which wastes minutes on a 429).
-RETRIES_BEFORE_BACKUP = 1
+RETRIES_BEFORE_BACKUP = 0
 
 
 def pick_model(agent: str, quick_llm, deep_llm):
@@ -106,6 +106,8 @@ def build_model(config: dict, tier: str, callbacks: list | None = None):
     # It gets a logger too, so a failing backup shows up in the log file
     # (LangChain re-raises the MAIN model's error when both fail).
     backup_config = {**config, f"{tier}_think_llm": backup_name}
+    if config.get("llm_backup_max_retries") is not None:
+        backup_config["llm_max_retries"] = config["llm_backup_max_retries"]
     backup_logger = FallbackLogger(tier, main_name, backup_name, log_file, is_backup=True)
     backup_llm = create_tier_client(backup_config, tier, callbacks=callbacks + [backup_logger]).get_llm()
 

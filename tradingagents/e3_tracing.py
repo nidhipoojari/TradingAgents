@@ -68,6 +68,42 @@ def _tokens(result: Any) -> tuple[int | None, int | None]:
             int(out) if out is not None else None)
 
 
+def _timeline(observations: list[dict[str, Any]], wall_time_seconds: float) -> dict[str, Any] | None:
+    """Where the wall time went: inside LLM calls, before the first, after the last.
+
+    Overlapping calls are merged, so ``llm_busy_seconds`` is the time at least one
+    call was in flight (equal to the summed latency when calls run one at a time).
+    Offsets are relative to the callback's creation, which E3Session does at the
+    start of its wall clock. None when no call carries an offset.
+    """
+    spans = sorted(
+        (e["start_offset_ms"], e["start_offset_ms"] + e["latency_ms"])
+        for e in observations
+        if e.get("start_offset_ms") is not None
+    )
+    if not spans:
+        return None
+    busy_ms = 0.0
+    run_start, run_end = spans[0]
+    for start, end in spans[1:]:
+        if start > run_end:
+            busy_ms += run_end - run_start
+            run_start, run_end = start, end
+        else:
+            run_end = max(run_end, end)
+    busy_ms += run_end - run_start
+    first_start = spans[0][0] / 1000
+    last_end = max(end for _, end in spans) / 1000
+    busy = busy_ms / 1000
+    return {
+        "llm_busy_seconds": round(busy, 3),
+        "summed_llm_latency_seconds": round(sum(e - s for s, e in spans) / 1000, 3),
+        "before_first_llm_seconds": round(first_start, 3),
+        "between_llm_calls_seconds": round(last_end - first_start - busy, 3),
+        "after_last_llm_seconds": round(wall_time_seconds - last_end, 3),
+    }
+
+
 class E3MetricsCallback(BaseCallbackHandler):
     """Collect LLM-call duration, model, errors, and provider-reported token counts."""
 
@@ -75,6 +111,8 @@ class E3MetricsCallback(BaseCallbackHandler):
         self.started: dict[str, dict[str, Any]] = {}
         self.records: list[dict[str, Any]] = []
         self.lock = RLock()
+        # Reference point for per-call start offsets (E3 timeline).
+        self.created = time.perf_counter()
 
     def _start(self, serialized: dict[str, Any], run_id: Any, metadata: dict | None) -> None:
         with self.lock:
@@ -104,6 +142,7 @@ class E3MetricsCallback(BaseCallbackHandler):
                 "run_id": str(run_id),
                 "agent": prior["agent"],
                 "model": prior["model"],
+                "start_offset_ms": round((prior["start"] - self.created) * 1000, 2),
                 "latency_ms": round((time.perf_counter() - prior["start"]) * 1000, 2),
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
@@ -177,10 +216,12 @@ class E3MetricsCallback(BaseCallbackHandler):
             "wall_time_seconds": round(wall_time_seconds, 3),
             "observed_llm_calls": len(observations),
             "observed_llm_errors": sum(x["error"] is not None for x in observations),
+            "timing": _timeline(observations, wall_time_seconds),
             "per_call": [
                 {
                     "agent": event["agent"],
                     "model": event["model"],
+                    "start_offset_ms": event.get("start_offset_ms"),
                     "latency_ms": event["latency_ms"],
                     "input_tokens": event["input_tokens"],
                     "output_tokens": event["output_tokens"],

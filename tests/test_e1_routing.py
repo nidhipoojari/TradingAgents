@@ -71,3 +71,114 @@ def test_backup_failure_is_logged(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError):
         build_model(config, "quick").invoke("hi")
     assert "BACKUP backup-model also failed" in (tmp_path / "e1_fallback_log.txt").read_text()
+
+
+def test_timeout_triggers_backup(monkeypatch, tmp_path):
+    """A primary-model timeout must allow E1 to use the backup."""
+
+    class TimedOutModel(FakeListChatModel):
+        def _call(self, *args, **kwargs):
+            raise TimeoutError("Simulated Gemini request timeout")
+
+    seen = []
+
+    _fake_clients(
+        monkeypatch,
+        TimedOutModel(responses=["unused"]),
+        FakeListChatModel(responses=["backup succeeded"]),
+        seen,
+    )
+
+    config = {
+        "quick_think_llm": "main-model",
+        "quick_fallback_llm": "backup-model",
+        "results_dir": str(tmp_path),
+        "llm_timeout": 15.0,
+    }
+
+    llm = build_model(config, "quick")
+    result = llm.invoke("Analyze MSFT")
+
+    assert result.content == "backup succeeded"
+    assert seen == ["main-model", "backup-model"]
+
+    log = (tmp_path / "e1_fallback_log.txt").read_text()
+    assert "switching to backup-model" in log
+
+
+def test_backup_receives_configured_retry_limit(monkeypatch, tmp_path):
+    """E1 passes independent retry settings to primary and backup."""
+    captured = []
+
+    def fake_create(config, tier, **kwargs):
+        captured.append({
+            "model": config[f"{tier}_think_llm"],
+            "retries": config.get("llm_max_retries"),
+        })
+        return _Client(FakeListChatModel(responses=["ok"]))
+
+    monkeypatch.setattr(e1_routing, "create_tier_client", fake_create)
+
+    config = {
+        "quick_think_llm": "main-model",
+        "quick_fallback_llm": "backup-model",
+        "results_dir": str(tmp_path),
+        "llm_max_retries": 6,
+        "llm_backup_max_retries": 0,
+    }
+
+    build_model(config, "quick")
+
+    assert captured == [
+        {"model": "main-model", "retries": 0},
+        {"model": "backup-model", "retries": 0},
+    ]
+
+
+def test_primary_429_then_backup_503_then_recovery(monkeypatch, tmp_path):
+    """Simulate SDK retry behavior: primary 429, backup 503, then success."""
+    attempts = {"primary": 0, "backup": 0}
+    configurations = []
+
+    def fake_create(config, tier, **kwargs):
+        model_name = config[f"{tier}_think_llm"]
+        retry_limit = config["llm_max_retries"]
+        configurations.append((model_name, retry_limit))
+
+        class SimulatedModel(FakeListChatModel):
+            def _call(self, messages, stop=None, run_manager=None, **kw):
+                if model_name == "main-model":
+                    attempts["primary"] += 1
+                    raise RuntimeError("429 RESOURCE_EXHAUSTED")
+
+                # Simulate the provider SDK applying its retry budget.
+                for attempt in range(retry_limit + 1):
+                    attempts["backup"] += 1
+                    if attempt == 0:
+                        if retry_limit == 0:
+                            raise RuntimeError("503 UNAVAILABLE")
+                        continue
+                    return "Backup successfully recovered"
+
+                raise RuntimeError("503 UNAVAILABLE")
+
+        return _Client(SimulatedModel(responses=["unused"]))
+
+    monkeypatch.setattr(e1_routing, "create_tier_client", fake_create)
+
+    config = {
+        "quick_think_llm": "main-model",
+        "quick_fallback_llm": "backup-model",
+        "results_dir": str(tmp_path),
+        "llm_max_retries": 6,
+        "llm_backup_max_retries": 1,
+    }
+
+    result = build_model(config, "quick").invoke("Analyze NVDA")
+
+    assert result.content == "Backup successfully recovered"
+    assert attempts == {"primary": 1, "backup": 2}
+    assert configurations == [
+        ("main-model", 0),
+        ("backup-model", 1),
+    ]
