@@ -136,7 +136,7 @@ def _check_imports(tree: Path, env: dict) -> dict:
     """The tree's own code must be what runs, not another checkout's editable install."""
     out = subprocess.run(
         [sys.executable, "-c", "import cli, tradingagents; print(cli.__file__); print(tradingagents.__file__)"],
-        cwd=tree, env=env, capture_output=True, text=True, check=True).stdout.split()
+        cwd=tree, env=env, capture_output=True, text=True, check=True).stdout.splitlines()
     for path in out:
         if not Path(path).resolve().is_relative_to(tree.resolve()):
             raise SystemExit(f"Refusing to run: {path} is outside {tree}")
