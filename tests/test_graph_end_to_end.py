@@ -396,3 +396,27 @@ def test_the_memory_step_reads_lessons_as_of_the_trade_date_and_settles_once(tmp
 
     assert asked == ["2026-01-20", "2026-01-20"]
     assert (tmp_path / "log.md").read_text() == log_after_first
+
+
+@pytest.mark.unit
+def test_e3_attributes_every_agent_by_name_with_all_four_analysts(tmp_path, monkeypatch, offline):
+    """E3 records each analyst under its own name, never as 'agent' or 'unattributed'."""
+    from tradingagents.e3_tracing import E3MetricsCallback
+
+    metrics = E3MetricsCallback()
+    cfg = copy.deepcopy(DEFAULT_CONFIG)
+    cfg.update(results_dir=str(tmp_path / "results"), data_cache_dir=str(tmp_path / "cache"),
+               memory_log_path=str(tmp_path / "log.md"))
+    monkeypatch.setattr(e1_routing, "create_tier_client", lambda config, tier, **k: _Client(ScriptedModel()))
+    graph = trading_graph.TradingAgentsGraph(
+        ["market", "social", "news", "fundamentals"], config=cfg, callbacks=[metrics])
+
+    graph.propagate("NVDA", TRADE_DATE)
+
+    agents = set(metrics.summary(ticker="NVDA", analysis_date=TRADE_DATE, status="success",
+                                 wall_time_seconds=1.0)["per_agent"])
+    assert not agents & {"agent", "unattributed"}, agents
+    for name in ("Market Analyst", "Sentiment Analyst", "News Analyst", "Fundamentals Analyst",
+                 "Bull Researcher", "Bear Researcher", "Research Manager", "Trader",
+                 "Aggressive Analyst", "Conservative Analyst", "Neutral Analyst", "Portfolio Manager"):
+        assert name in agents, (name, sorted(agents))
