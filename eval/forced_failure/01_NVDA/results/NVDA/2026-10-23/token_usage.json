@@ -1,0 +1,17 @@
+{
+  "llm_calls": 20,
+  "tool_calls": 3,
+  "tokens_in": 22909,
+  "tokens_out": 4767,
+  "llm_provider": "google",
+  "quick_think_llm": "gemini-does-not-exist",
+  "deep_think_llm": "gemini-does-not-exist",
+  "elapsed_seconds": 54.5,
+  "tokens_total": 27676,
+  "e2_cache": {
+    "hits": 0,
+    "misses": 5,
+    "skipped": 0,
+    "hit_rate_pct": 0.0
+  }
+}

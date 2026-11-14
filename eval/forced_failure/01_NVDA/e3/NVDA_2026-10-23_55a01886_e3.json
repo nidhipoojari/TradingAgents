@@ -1,0 +1,323 @@
+{
+  "schema": "tradingagents-e3-summary-v1",
+  "created_at_utc": "2026-11-14T19:40:44.779177+00:00",
+  "ticker": "NVDA",
+  "analysis_date": "2026-10-23",
+  "status": "success",
+  "decision": "**Rating**: Overweight\n\n**Executive Summary**: Initiate an Overweight position in NVDA, starting with an initial 0.3x allocation at the current $210.96 level. Gradually scale in with the remaining 0.7x allocation at the $203.00 structural support zone, while utilizing a wider mental stop-loss at $194.00 to account for the current $6.06 ATR.\n\n**Investment Thesis**: The decision to Overweight NVDA balances the compelling long-term fundamental strength of the CUDA ecosystem against current technical volatility. While the 50-day SMA provides overhead resistance, the proximity to the 200-day SMA at $203.36 and the RSI of 38.11 suggest that bearish momentum is approaching exhaustion. By favoring the moderate approach over both the aggressive 'all-in' strategy and the conservative 'paralysis by analysis,' we gain exposure to the structural AI growth narrative while protecting capital through a phased, disciplined entry. The thesis is invalidated if the price demonstrates sustained weakness and closes below the $194.00 support zone, indicating a breakdown in the long-term structural floor.\n\n**Price Target**: not provided\n\n**Time Horizon**: 3-6 months",
+  "run_error": null,
+  "wall_time_seconds": 54.816,
+  "observed_llm_calls": 20,
+  "observed_llm_errors": 10,
+  "timing": {
+    "llm_busy_seconds": 52.544,
+    "summed_llm_latency_seconds": 52.544,
+    "before_first_llm_seconds": 1.25,
+    "between_llm_calls_seconds": 0.983,
+    "after_last_llm_seconds": 0.039
+  },
+  "per_call": [
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 1249.97,
+      "latency_ms": 271.22,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 1527.82,
+      "latency_ms": 13111.98,
+      "input_tokens": 1853,
+      "output_tokens": 140,
+      "had_error": false
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 15469.47,
+      "latency_ms": 203.69,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 15674.9,
+      "latency_ms": 4484.67,
+      "input_tokens": 5153,
+      "output_tokens": 657,
+      "had_error": false
+    },
+    {
+      "agent": "Bull Researcher",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 20178.41,
+      "latency_ms": 281.95,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Bull Researcher",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 20463.35,
+      "latency_ms": 9223.45,
+      "input_tokens": 1091,
+      "output_tokens": 736,
+      "had_error": false
+    },
+    {
+      "agent": "Bear Researcher",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 29697.85,
+      "latency_ms": 296.04,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Bear Researcher",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 29995.67,
+      "latency_ms": 3066.98,
+      "input_tokens": 1834,
+      "output_tokens": 780,
+      "had_error": false
+    },
+    {
+      "agent": "Research Manager",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 33072.95,
+      "latency_ms": 405.26,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Research Manager",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 33482.37,
+      "latency_ms": 2666.05,
+      "input_tokens": 1949,
+      "output_tokens": 310,
+      "had_error": false
+    },
+    {
+      "agent": "Trader",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 36169.29,
+      "latency_ms": 271.14,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Trader",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 36443.31,
+      "latency_ms": 2356.06,
+      "input_tokens": 1402,
+      "output_tokens": 185,
+      "had_error": false
+    },
+    {
+      "agent": "Aggressive Analyst",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 38814.48,
+      "latency_ms": 83.54,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Aggressive Analyst",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 38900.01,
+      "latency_ms": 3379.12,
+      "input_tokens": 1406,
+      "output_tokens": 478,
+      "had_error": false
+    },
+    {
+      "agent": "Conservative Analyst",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 42292.43,
+      "latency_ms": 189.2,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Conservative Analyst",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 42483.79,
+      "latency_ms": 3302.86,
+      "input_tokens": 2333,
+      "output_tokens": 483,
+      "had_error": false
+    },
+    {
+      "agent": "Neutral Analyst",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 45803.55,
+      "latency_ms": 113.75,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Neutral Analyst",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 45919.35,
+      "latency_ms": 4557.5,
+      "input_tokens": 3263,
+      "output_tokens": 712,
+      "had_error": false
+    },
+    {
+      "agent": "Portfolio Manager",
+      "model": "gemini-does-not-exist",
+      "start_offset_ms": 50494.59,
+      "latency_ms": 380.94,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true
+    },
+    {
+      "agent": "Portfolio Manager",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 50877.95,
+      "latency_ms": 3899.07,
+      "input_tokens": 2625,
+      "output_tokens": 286,
+      "had_error": false
+    }
+  ],
+  "per_agent": {
+    "Aggressive Analyst": {
+      "llm_calls": 2,
+      "errors": 1,
+      "observed_llm_latency_ms": 3462.66,
+      "input_tokens_reported": 1406,
+      "output_tokens_reported": 478,
+      "missing_usage_events": 1,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-does-not-exist"
+      ]
+    },
+    "Bear Researcher": {
+      "llm_calls": 2,
+      "errors": 1,
+      "observed_llm_latency_ms": 3363.02,
+      "input_tokens_reported": 1834,
+      "output_tokens_reported": 780,
+      "missing_usage_events": 1,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-does-not-exist"
+      ]
+    },
+    "Bull Researcher": {
+      "llm_calls": 2,
+      "errors": 1,
+      "observed_llm_latency_ms": 9505.4,
+      "input_tokens_reported": 1091,
+      "output_tokens_reported": 736,
+      "missing_usage_events": 1,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-does-not-exist"
+      ]
+    },
+    "Conservative Analyst": {
+      "llm_calls": 2,
+      "errors": 1,
+      "observed_llm_latency_ms": 3492.06,
+      "input_tokens_reported": 2333,
+      "output_tokens_reported": 483,
+      "missing_usage_events": 1,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-does-not-exist"
+      ]
+    },
+    "Market Analyst": {
+      "llm_calls": 4,
+      "errors": 2,
+      "observed_llm_latency_ms": 18071.56,
+      "input_tokens_reported": 7006,
+      "output_tokens_reported": 797,
+      "missing_usage_events": 2,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-does-not-exist"
+      ]
+    },
+    "Neutral Analyst": {
+      "llm_calls": 2,
+      "errors": 1,
+      "observed_llm_latency_ms": 4671.25,
+      "input_tokens_reported": 3263,
+      "output_tokens_reported": 712,
+      "missing_usage_events": 1,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-does-not-exist"
+      ]
+    },
+    "Portfolio Manager": {
+      "llm_calls": 2,
+      "errors": 1,
+      "observed_llm_latency_ms": 4280.01,
+      "input_tokens_reported": 2625,
+      "output_tokens_reported": 286,
+      "missing_usage_events": 1,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-does-not-exist"
+      ]
+    },
+    "Research Manager": {
+      "llm_calls": 2,
+      "errors": 1,
+      "observed_llm_latency_ms": 3071.31,
+      "input_tokens_reported": 1949,
+      "output_tokens_reported": 310,
+      "missing_usage_events": 1,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-does-not-exist"
+      ]
+    },
+    "Trader": {
+      "llm_calls": 2,
+      "errors": 1,
+      "observed_llm_latency_ms": 2627.2,
+      "input_tokens_reported": 1402,
+      "output_tokens_reported": 185,
+      "missing_usage_events": 1,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-does-not-exist"
+      ]
+    }
+  },
+  "estimated_cost_usd": null,
+  "known_usage_cost_usd": 0.012878,
+  "cost_complete": false,
+  "priced_llm_calls": 10,
+  "unpriced_llm_calls": 10,
+  "cost_note": "Not calculated: supply pricing for every model and ensure every LLM callback includes token usage.",
+  "limitations": [
+    "Unattributed events may appear when the agent/node is absent from callback metadata.",
+    "Tokens are counted only when reported by the underlying provider.",
+    "Callback LLM latency is not the same as end-to-end run latency.",
+    "Langfuse tracing records observations; it does not itself change E1 model routing or trigger fallback."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "llm_calls": 14,
+  "tool_calls": 3,
+  "tokens_in": 26322,
+  "tokens_out": 4976,
+  "llm_provider": "google",
+  "quick_think_llm": "gemini-3.5-flash-lite",
+  "deep_think_llm": "gemini-3.5-flash-lite",
+  "elapsed_seconds": 59.7,
+  "tokens_total": 31298,
+  "e2_cache": {
+    "hits": 0,
+    "misses": 5,
+    "skipped": 0,
+    "hit_rate_pct": 0.0
+  }
+}

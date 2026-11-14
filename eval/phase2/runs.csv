@@ -1,0 +1,6 @@
+plan,run_id,ticker,tracing,exit_code,wall_seconds,llm_calls,tool_calls,tokens_in,tokens_out,tokens_total,cli_elapsed_seconds,cost_usd,e2_hits,e2_misses,e2_hit_rate_pct,e3_cost_usd,e3_llm_errors,e3_models,e3_llm_busy_seconds,e3_before_first_llm_seconds,e3_between_llm_seconds,e3_after_last_llm_seconds,rating,e1_fallback_lines,success
+phase2,01_NVDA,NVDA,True,0,26.825,10,3,26321,5020,31341,22.6,0.020446,0,5,0.0,0.020446,0,gemini-3.5-flash-lite,21.516,0.77,0.663,0.052,Overweight,0,True
+phase2,02_NVDA,NVDA,True,0,29.635,11,3,26478,5186,31664,25.6,0.020908,4,1,80.0,,1,"gemini-3.1-flash-lite,gemini-3.5-flash-lite",24.811,0.71,0.347,0.049,Overweight,1,True
+phase2,03_NVDA,NVDA,True,0,30.201,10,3,27402,5391,32793,26.4,0.021698,5,0,100.0,0.021698,0,gemini-3.5-flash-lite,25.631,0.84,0.201,0.039,Overweight,0,True
+phase2,04_AAPL,AAPL,True,0,64.233,14,3,26322,4976,31298,59.7,0.020337,0,5,0.0,,4,"gemini-3.1-flash-lite,gemini-3.5-flash-lite",58.423,0.817,0.704,0.042,Overweight,4,True
+phase2,05_MSFT,MSFT,True,0,72.293,14,3,26637,5420,32057,68.3,0.021541,0,5,0.0,,4,"gemini-3.1-flash-lite,gemini-3.5-flash-lite",67.084,0.77,0.703,0.039,Hold,4,True

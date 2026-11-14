@@ -1,0 +1,223 @@
+{
+  "schema": "tradingagents-e3-summary-v1",
+  "created_at_utc": "2026-11-14T17:34:15.294604+00:00",
+  "ticker": "MSFT",
+  "analysis_date": "2026-10-23",
+  "status": "success",
+  "decision": "**Rating**: Hold\n\n**Executive Summary**: Maintain the current standard allocation in MSFT with a neutral posture. Do not add new capital until the stock decisively reclaims the 10-day EMA near 528.81 on expanding volume, or tests the 50-day SMA support zone near 508.35. Use the 11.28 ATR to manage risk parameters cautiously.\n\n**Investment Thesis**: The debate reflects a balanced tension between structural long-term strength and near-term momentum cooling. The conservative and neutral analysts correctly point out that price action is currently locked below the 10-day EMA (528.81) with a negative MACD histogram (-2.31), signaling a sideways chop and fading short-term momentum rather than a clear launchpad. While the aggressive analyst champions the broader uptrend and distance from the 200-day SMA (435.37), chasing the middle of a range with an ATR of 11.28 exposes capital to unnecessary volatility without confirmation. The evidence remains balanced between structural health and short-term cooling, supporting a Hold rating until the market proves directional conviction.\n\n**Price Target**: not provided\n\n**Time Horizon**: 3-6 months",
+  "run_error": null,
+  "wall_time_seconds": 26.088,
+  "observed_llm_calls": 12,
+  "observed_llm_errors": 0,
+  "per_call": [
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 1023.86,
+      "input_tokens": 1872,
+      "output_tokens": 46,
+      "had_error": false
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 689.84,
+      "input_tokens": 3289,
+      "output_tokens": 54,
+      "had_error": false
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 741.29,
+      "input_tokens": 4061,
+      "output_tokens": 40,
+      "had_error": false
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 4334.18,
+      "input_tokens": 4736,
+      "output_tokens": 1360,
+      "had_error": false
+    },
+    {
+      "agent": "Bull Researcher",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 2251.05,
+      "input_tokens": 1794,
+      "output_tokens": 438,
+      "had_error": false
+    },
+    {
+      "agent": "Bear Researcher",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 3000.77,
+      "input_tokens": 2239,
+      "output_tokens": 574,
+      "had_error": false
+    },
+    {
+      "agent": "Research Manager",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 1780.51,
+      "input_tokens": 1445,
+      "output_tokens": 274,
+      "had_error": false
+    },
+    {
+      "agent": "Trader",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 1054.57,
+      "input_tokens": 2070,
+      "output_tokens": 171,
+      "had_error": false
+    },
+    {
+      "agent": "Aggressive Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 1658.13,
+      "input_tokens": 2099,
+      "output_tokens": 315,
+      "had_error": false
+    },
+    {
+      "agent": "Conservative Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 2045.34,
+      "input_tokens": 2700,
+      "output_tokens": 386,
+      "had_error": false
+    },
+    {
+      "agent": "Neutral Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 3563.87,
+      "input_tokens": 3436,
+      "output_tokens": 519,
+      "had_error": false
+    },
+    {
+      "agent": "Portfolio Manager",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 2169.13,
+      "input_tokens": 2127,
+      "output_tokens": 281,
+      "had_error": false
+    }
+  ],
+  "per_agent": {
+    "Aggressive Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1658.13,
+      "input_tokens_reported": 2099,
+      "output_tokens_reported": 315,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Bear Researcher": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 3000.77,
+      "input_tokens_reported": 2239,
+      "output_tokens_reported": 574,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Bull Researcher": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2251.05,
+      "input_tokens_reported": 1794,
+      "output_tokens_reported": 438,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Conservative Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2045.34,
+      "input_tokens_reported": 2700,
+      "output_tokens_reported": 386,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Market Analyst": {
+      "llm_calls": 4,
+      "errors": 0,
+      "observed_llm_latency_ms": 6789.17,
+      "input_tokens_reported": 13958,
+      "output_tokens_reported": 1500,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Neutral Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 3563.87,
+      "input_tokens_reported": 3436,
+      "output_tokens_reported": 519,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Portfolio Manager": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2169.13,
+      "input_tokens_reported": 2127,
+      "output_tokens_reported": 281,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Research Manager": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1780.51,
+      "input_tokens_reported": 1445,
+      "output_tokens_reported": 274,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Trader": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1054.57,
+      "input_tokens_reported": 2070,
+      "output_tokens_reported": 171,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    }
+  },
+  "estimated_cost_usd": null,
+  "known_usage_cost_usd": null,
+  "cost_complete": false,
+  "priced_llm_calls": 0,
+  "unpriced_llm_calls": 12,
+  "cost_note": "Not calculated: supply pricing for every model and ensure every LLM callback includes token usage.",
+  "limitations": [
+    "Unattributed events may appear when the agent/node is absent from callback metadata.",
+    "Tokens are counted only when reported by the underlying provider.",
+    "Callback LLM latency is not the same as end-to-end run latency.",
+    "Langfuse tracing records observations; it does not itself change E1 model routing or trigger fallback."
+  ]
+}

@@ -1,0 +1,5 @@
+**Recommendation**: Overweight
+
+**Rationale**: The bull argument wins on the merits by correctly identifying that NVDA is testing key long-term structural support at the 200-day SMA ($203.36) and the lower Bollinger Band ($208.06) while sitting at an oversold RSI of 38.11 without destructive institutional distribution. While the bear correctly highlights short-term weakness, negative momentum (MACD at -2.63), and falling below the 50-day SMA ($222.39), the absence of aggressive selling volume and the close proximity to macro bedrock make this a high-probability mean-reversion opportunity rather than a structural breakdown.
+
+**Strategic Actions**: Initiate a partial tranche of NVDA at current levels around $210.96, scaling in incrementally as it holds above the $203.36 support level. Set strict risk management parameters using the $6.06 ATR to place stop-losses below the 200-day moving average. Target a measured move back toward the middle Bollinger Band at $225.54, sizing the initial allocation at 50% of a standard position size until momentum confirms the reversal.

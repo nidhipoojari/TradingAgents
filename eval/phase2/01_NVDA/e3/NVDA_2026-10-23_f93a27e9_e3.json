@@ -1,0 +1,224 @@
+{
+  "schema": "tradingagents-e3-summary-v1",
+  "created_at_utc": "2026-11-14T19:25:58.215533+00:00",
+  "ticker": "NVDA",
+  "analysis_date": "2026-10-23",
+  "status": "success",
+  "decision": "**Rating**: Overweight\n\n**Executive Summary**: Initiate staged accumulation in NVDA starting near current price levels around $210.96, deploying one-third of intended capital to respect the lower Bollinger Band support zone ($208.06). Keep remaining dry powder to buy if the stock tests the 200-day SMA support at $203.36, while enforcing a strict stop loss at $195.00 to manage the high ATR ($6.06) and active institutional distribution. Recommended holding period is 3-6 months.\n\n**Investment Thesis**: The investment thesis is anchored by the convergence of major structural supports for NVDA, specifically the lower Bollinger Band at $208.06, the 200-day SMA at $203.36, and an approaching oversold RSI of 38.11. While the conservative analyst rightly highlights persistent institutional distribution (such as high-volume sell-offs over 118 million shares in October) and a negative MACD of -2.63 that warns against blind all-in buying, the aggressive and neutral analysts successfully make the case that these technical levels offer a high-probability mean-reversion opportunity. To reconcile the tension between short-term distribution pressure and long-term structural support, a staged accumulation strategy is required. This view would be invalidated and the position exited if NVDA breaks decisively below the 200-day SMA and breaches the $195.00 stop-loss threshold.\n\n**Price Target**: not provided\n\n**Time Horizon**: 3-6 months",
+  "run_error": null,
+  "wall_time_seconds": 23.001,
+  "observed_llm_calls": 10,
+  "observed_llm_errors": 0,
+  "timing": {
+    "llm_busy_seconds": 21.516,
+    "summed_llm_latency_seconds": 21.516,
+    "before_first_llm_seconds": 0.77,
+    "between_llm_calls_seconds": 0.663,
+    "after_last_llm_seconds": 0.052
+  },
+  "per_call": [
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 770.11,
+      "latency_ms": 911.12,
+      "input_tokens": 1853,
+      "output_tokens": 140,
+      "had_error": false
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 2230.4,
+      "latency_ms": 4390.38,
+      "input_tokens": 5169,
+      "output_tokens": 1391,
+      "had_error": false
+    },
+    {
+      "agent": "Bull Researcher",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 6645.96,
+      "latency_ms": 2833.6,
+      "input_tokens": 1825,
+      "output_tokens": 679,
+      "had_error": false
+    },
+    {
+      "agent": "Bear Researcher",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 9489.43,
+      "latency_ms": 2876.04,
+      "input_tokens": 2511,
+      "output_tokens": 697,
+      "had_error": false
+    },
+    {
+      "agent": "Research Manager",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 12377.24,
+      "latency_ms": 1681.52,
+      "input_tokens": 1809,
+      "output_tokens": 334,
+      "had_error": false
+    },
+    {
+      "agent": "Trader",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 14072.33,
+      "latency_ms": 1003.85,
+      "input_tokens": 2160,
+      "output_tokens": 180,
+      "had_error": false
+    },
+    {
+      "agent": "Aggressive Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 15090.28,
+      "latency_ms": 2067.6,
+      "input_tokens": 2135,
+      "output_tokens": 424,
+      "had_error": false
+    },
+    {
+      "agent": "Conservative Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 17172.63,
+      "latency_ms": 2003.68,
+      "input_tokens": 2954,
+      "output_tokens": 387,
+      "had_error": false
+    },
+    {
+      "agent": "Neutral Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 19190.1,
+      "latency_ms": 2146.11,
+      "input_tokens": 3692,
+      "output_tokens": 431,
+      "had_error": false
+    },
+    {
+      "agent": "Portfolio Manager",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 21347.42,
+      "latency_ms": 1602.02,
+      "input_tokens": 2213,
+      "output_tokens": 357,
+      "had_error": false
+    }
+  ],
+  "per_agent": {
+    "Aggressive Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2067.6,
+      "input_tokens_reported": 2135,
+      "output_tokens_reported": 424,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Bear Researcher": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2876.04,
+      "input_tokens_reported": 2511,
+      "output_tokens_reported": 697,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Bull Researcher": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2833.6,
+      "input_tokens_reported": 1825,
+      "output_tokens_reported": 679,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Conservative Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2003.68,
+      "input_tokens_reported": 2954,
+      "output_tokens_reported": 387,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Market Analyst": {
+      "llm_calls": 2,
+      "errors": 0,
+      "observed_llm_latency_ms": 5301.5,
+      "input_tokens_reported": 7022,
+      "output_tokens_reported": 1531,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Neutral Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2146.11,
+      "input_tokens_reported": 3692,
+      "output_tokens_reported": 431,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Portfolio Manager": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1602.02,
+      "input_tokens_reported": 2213,
+      "output_tokens_reported": 357,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Research Manager": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1681.52,
+      "input_tokens_reported": 1809,
+      "output_tokens_reported": 334,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Trader": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1003.85,
+      "input_tokens_reported": 2160,
+      "output_tokens_reported": 180,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    }
+  },
+  "estimated_cost_usd": 0.020446,
+  "known_usage_cost_usd": 0.020446,
+  "cost_complete": true,
+  "priced_llm_calls": 10,
+  "unpriced_llm_calls": 0,
+  "cost_note": "Estimate from supplied model pricing and reported tokens; does not include tools or infrastructure.",
+  "limitations": [
+    "Unattributed events may appear when the agent/node is absent from callback metadata.",
+    "Tokens are counted only when reported by the underlying provider.",
+    "Callback LLM latency is not the same as end-to-end run latency.",
+    "Langfuse tracing records observations; it does not itself change E1 model routing or trigger fallback."
+  ]
+}

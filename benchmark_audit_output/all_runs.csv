@@ -1,0 +1,5 @@
+path,dataset_label,run_label,phase,ticker,analysis_date,status,wall_seconds,summed_llm_seconds,wall_minus_summed_llm_seconds,input_tokens,output_tokens,total_tokens,estimated_cost_usd,llm_calls,models,observed_llm_errors,cost_complete,decision_rating
+consistency_evaluation/nvda/run_1/e3/NVDA_2026-10-23_982ecd39_e3.json,nvda,run_1,E3,NVDA,2026-10-23,success,28.072,26.84085,1.2311499999999995,34504,5360,39864,0.023751,12,gemini-3.5-flash-lite,0,True,**Rating**: Overweight
+consistency_evaluation/nvda/run_2/e3/NVDA_2026-10-23_6f690663_e3.json,nvda,run_2,E3,NVDA,2026-10-23,success,27.254,26.094990000000003,1.1590099999999985,32105,4804,36909,0.021642,12,gemini-3.5-flash-lite,0,True,**Rating**: Hold
+consistency_evaluation/nvda_live/run_1/e3/NVDA_2026-10-23_27d3d8aa_e3.json,nvda_live,run_1,E3,NVDA,2026-10-23,success,40.64,26.40922,14.23078,32825,4988,37813,0.022318,12,gemini-3.5-flash-lite,0,True,**Rating**: Hold
+consistency_evaluation/nvda_live/run_1/e3/NVDA_2026-10-23_ea849f12_e3.json,nvda_live,run_1,E3,NVDA,2026-10-23,success,36.695,26.89441,9.80059,35420,5695,41115,0.024864,12,gemini-3.5-flash-lite,0,True,**Rating**: Overweight
