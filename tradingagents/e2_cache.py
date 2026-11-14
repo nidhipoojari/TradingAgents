@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
 from contextlib import closing
 from datetime import date, datetime
 from pathlib import Path
@@ -33,6 +34,13 @@ from tradingagents.dataflows.config import get_config
 
 # Counters so we can report the cache hit rate (reset with reset_stats()).
 STATS = {"hits": 0, "misses": 0, "skipped": 0}
+# Tool calls from one model turn run in parallel threads; keep the counts exact.
+_STATS_LOCK = threading.Lock()
+
+
+def _count(key: str) -> None:
+    with _STATS_LOCK:
+        STATS[key] += 1
 
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _ERROR_PREFIXES = ("DATA_UNAVAILABLE", "NO_DATA_AVAILABLE", "Error")
@@ -79,16 +87,16 @@ def lookup(tool: str, args: tuple, kwargs: dict) -> str | None:
     """Return the saved answer for this request, or None (= go download it)."""
     request = _request_key(args, kwargs)
     if not _is_past_request(request):
-        STATS["skipped"] += 1
+        _count("skipped")
         return None
     with closing(_connect()) as db:
         row = db.execute(
             "SELECT result FROM cache WHERE tool = ? AND request = ?", (tool, request)
         ).fetchone()
     if row is None:
-        STATS["misses"] += 1
+        _count("misses")
         return None
-    STATS["hits"] += 1
+    _count("hits")
     return row[0]
 
 
@@ -107,5 +115,15 @@ def save(tool: str, args: tuple, kwargs: dict, result) -> None:
 
 
 def reset_stats() -> None:
-    for key in STATS:
-        STATS[key] = 0
+    with _STATS_LOCK:
+        for key in STATS:
+            STATS[key] = 0
+
+
+def stats_snapshot() -> dict:
+    """This process's counts plus the hit rate over cacheable lookups (None if none)."""
+    with _STATS_LOCK:
+        counts = dict(STATS)
+    looked_up = counts["hits"] + counts["misses"]
+    counts["hit_rate_pct"] = round(100 * counts["hits"] / looked_up, 1) if looked_up else None
+    return counts

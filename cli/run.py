@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import webbrowser
+from contextlib import nullcontext
 from functools import wraps
 from pathlib import Path
 
@@ -191,13 +192,21 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
     message_buffer.add_tool_call = save_tool_call_decorator(message_buffer, "add_tool_call")
     message_buffer.update_report_section = save_report_section_decorator(message_buffer, "update_report_section")
 
-    layout = create_layout()
+    benchmark_mode = (
+        os.getenv("TRADINGAGENTS_BENCHMARK_MODE") == "1"
+    )
+    layout = None if benchmark_mode else create_layout()
+
+    def render_progress(*args, **kwargs):
+        if not benchmark_mode:
+            return update_display(*args, **kwargs)
+
 
     # The alternate screen keeps a layout taller than the window from redrawing
     # by scrolling; the final report prints after this block, on the normal screen.
-    with Live(layout, refresh_per_second=4, screen=True):
+    with (nullcontext() if benchmark_mode else Live(layout, refresh_per_second=4, screen=True)):
         # Initial display
-        update_display(layout, stats_handler=stats_handler, start_time=start_time)
+        render_progress(layout, stats_handler=stats_handler, start_time=start_time)
 
         message_buffer.add_message("System", f"Selected ticker: {selections['ticker']}")
         if selections["asset_type"] != "stock":
@@ -209,18 +218,18 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
             "System",
             f"Selected analysts: {', '.join(analyst.value for analyst in selections['analysts'])}",
         )
-        update_display(layout, stats_handler=stats_handler, start_time=start_time)
+        render_progress(layout, stats_handler=stats_handler, start_time=start_time)
 
         # The analysts start together.
         for spec in analyst_execution_plan.specs:
             message_buffer.update_agent_status(spec.agent_node, "in_progress")
             analyst_wall_time_tracker.mark_started(spec.key)
-        update_display(layout, stats_handler=stats_handler, start_time=start_time)
+        render_progress(layout, stats_handler=stats_handler, start_time=start_time)
 
         spinner_text = (
             f"Analyzing {selections['ticker']} on {selections['analysis_date']}..."
         )
-        update_display(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
+        render_progress(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
 
         # The same initial state propagate() builds, with the resolved
         # instrument identity; the graph's Memory Log step settles past
@@ -267,7 +276,7 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
                                 message_buffer.add_tool_call(tool_call.name, tool_call.args)
 
                 if chunk is None:   # a step inside an analyst's graph: messages only
-                    update_display(layout, stats_handler=stats_handler, start_time=start_time)
+                    render_progress(layout, stats_handler=stats_handler, start_time=start_time)
                     continue
 
                 update_analyst_statuses(
@@ -346,7 +355,7 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
                         message_buffer.update_agent_status("Neutral Analyst", "completed")
                         message_buffer.update_agent_status("Portfolio Manager", "completed")
 
-                update_display(layout, stats_handler=stats_handler, start_time=start_time)
+                render_progress(layout, stats_handler=stats_handler, start_time=start_time)
 
                 trace.append(chunk)
 
@@ -379,7 +388,7 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
             if section in final_state:
                 message_buffer.update_report_section(section, final_state[section])
 
-        update_display(layout, stats_handler=stats_handler, start_time=start_time)
+        render_progress(layout, stats_handler=stats_handler, start_time=start_time)
 
     # Keep the run's token and call totals; the live footer is gone once the view closes.
     usage = {
@@ -390,6 +399,10 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
         "elapsed_seconds": round(time.time() - start_time, 1),
     }
     usage["tokens_total"] = usage["tokens_in"] + usage["tokens_out"]
+    # E2: this run's cache hits and misses (absent when the cache is off).
+    from tradingagents import e2_cache
+    if e2_cache.is_enabled():
+        usage["e2_cache"] = e2_cache.stats_snapshot()
     usage_file = results_dir / "token_usage.json"
     usage_file.write_text(json.dumps(usage, indent=2), encoding="utf-8")
 

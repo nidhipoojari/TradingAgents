@@ -20,7 +20,9 @@ def _blank_settings_overlay():
     for filename in (".env", ".env.enterprise"):
         names |= set(dotenv_values(find_dotenv(filename, usecwd=True)))
     for name in names:
-        if name.startswith("TRADINGAGENTS_"):
+        # E3_* too: with a contributor's E3_TRACE_ENABLED=1, every CLI test run
+        # would trace to Langfuse and save a summary into their E3_RESULTS_DIR.
+        if name.startswith(("TRADINGAGENTS_", "E3_")):
             os.environ[name] = ""
 
 
