@@ -1,0 +1,11 @@
+{
+  "llm_calls": 12,
+  "tool_calls": 3,
+  "tokens_in": 32105,
+  "tokens_out": 4804,
+  "llm_provider": "google",
+  "quick_think_llm": "gemini-3.5-flash-lite",
+  "deep_think_llm": "gemini-3.5-flash-lite",
+  "elapsed_seconds": 26.8,
+  "tokens_total": 36909
+}

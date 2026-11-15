@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>AAPL 2026-10-23 Hold: TradingAgents report</title>
+<style>
+:root {
+  --paper: #fbfbfa; --ink: #1c2126; --muted: #5d6670; --rule: #e2e5e8; --wash: #f2f4f5;
+  --accent: #087a59; --up: #087a59; --down: #b4372f; --level: #5d6670; --edge: #d3d8dc; --mark: #878f97;
+  --serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #131a1f; --ink: #e4e8eb; --muted: #9aa6af; --rule: #263239; --wash: #1a242a;
+    --accent: #14c290; --up: #14c290; --down: #ef6f63; --level: #9aa6af; --edge: #3d4c55; --mark: #66737c;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .masthead .logo [stroke="#363636"] { stroke: var(--muted); }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 17px/1.62 var(--serif); font-kerning: normal;
+}
+.page { max-width: 46rem; margin: 0 auto; padding: 3.5rem 1.5rem 6rem; }
+main h2, main h3 { scroll-margin-top: 1rem; }
+a { color: var(--accent); text-underline-offset: 0.15em; }
+h1, h2, h3, h4 { text-wrap: balance; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.masthead { padding-bottom: 1.75rem; border-bottom: 1px solid var(--rule); }
+/* The logo leads at the top left, where readers look for it, 24px tall (the usual
+   on-screen floor for a wordmark) with at least its height clear below. */
+.masthead .logo { display: block; width: fit-content; margin: 0 0 2.25rem; }
+.masthead .logo svg { display: block; height: 1.5rem; width: auto; }
+.masthead h1 {
+  margin: 0; font: 600 2.6rem/1.1 var(--sans); letter-spacing: -0.02em;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2em 0.5em;
+}
+.masthead .rating { font-weight: 500; }
+.rating.up { color: var(--up); } .rating.down { color: var(--down); } .rating.level { color: var(--level); }
+.rating.review { color: var(--muted); font-style: italic; }
+.masthead .date { margin: 0.55rem 0 1.5rem; font: 1rem/1.4 var(--sans); color: var(--muted); }
+.run { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.45rem 1.25rem;
+  font: 0.85rem/1.5 var(--sans); }
+.run > div { display: contents; }
+.run dt { color: var(--muted); }
+.run dd { margin: 0; overflow-wrap: anywhere; }
+.run .note dd { color: var(--down); }
+.field { display: inline-block; margin: 0 0.15rem 0.15rem 0; padding: 0 0.4rem; border: 1px solid var(--edge);
+  border-radius: 4px; background: var(--wash); font: 0.8rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.run .group { display: inline-block; margin-right: 0.9rem; white-space: nowrap; }
+.run .group > .name { color: var(--muted); margin-right: 0.3rem; }
+.run .then { color: var(--muted); margin: 0 0.2rem; }
+
+/* The sections: listed under the header on narrow screens. On wide ones, a
+   quiet rail centred on the left edge (numerals for the sections, short bars
+   for their agents) that opens into the full list when pointed at or focused. */
+.contents { margin: 2.25rem 0 0; font: 0.9rem/1.45 var(--sans); }
+.contents ul { margin: 0; padding: 0; list-style: none; }
+.contents > ul > li { margin: 0 0 0.75rem; }
+.contents ul ul { margin-top: 0.2rem; padding-left: 1.6rem; font-size: 0.85rem; }
+.contents ul ul li { margin: 0.1rem 0; }
+.contents a { display: flex; align-items: center; gap: 0.6rem; color: var(--muted); text-decoration: none; }
+.contents > ul > li > a { color: var(--ink); }
+.contents .num { min-width: 1.6rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.contents .bar { display: none; }
+.contents a:hover .label, .contents a:focus-visible .label { color: var(--accent); text-decoration: underline; }
+.to-top { position: fixed; right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom));
+  padding: 0.25rem 0.6rem; border: 1px solid var(--edge); border-radius: 4px; background: var(--paper);
+  color: var(--muted); font: 0.8rem/1.4 var(--sans); text-decoration: none; }
+
+@media (min-width: 60rem) {
+  .contents { position: fixed; left: 1rem; top: 50%; transform: translateY(-50%); z-index: 1;
+    max-height: 86vh; overflow-y: auto; overscroll-behavior: contain; margin: 0;
+    padding: 0.7rem 0.9rem; border: 1px solid transparent; border-radius: 6px;
+    transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s; }
+  .contents > ul > li { margin: 0 0 0.35rem; }
+  .contents ul ul { margin-top: 0; padding-left: 0; }
+  .contents ul ul li { margin: 0; }
+  /* Marks reach 3:1 contrast and rows 24px, the WCAG 2.2 floors for a control's
+     visual cue and its pointer target. */
+  .contents a { min-height: 1.5rem; }
+  .contents .num { min-width: 1.4rem; }
+  .contents .bar { display: block; flex: none; width: 1.25rem; height: 2px; margin-left: 0.2rem;
+    border-radius: 1px; background: var(--mark); }
+  .contents .label { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap;
+    transition: opacity 0.15s, max-width 0.2s; }
+  .contents:hover, .contents:focus-within { background: var(--paper); border-color: var(--rule);
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.08); }
+  .contents:hover .label, .contents:focus-within .label { max-width: 18rem; opacity: 1; }
+  .contents a:hover .bar, .contents a:focus-visible .bar { background: var(--accent); }
+  .to-top { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contents, .contents .label { transition: none; }
+}
+
+/* The maker's credit: one quiet line at the foot. */
+.credit { margin-top: 4.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);
+  color: var(--muted); font: 0.8rem/1.4 var(--sans); }
+.credit a { color: inherit; text-decoration: none; }
+.credit a.brand { color: var(--accent); }
+.credit a:hover, .credit a:focus-visible { text-decoration: underline; }
+
+/* Three levels of separation: the five groups, the agents within a group, and
+   breaks an agent draws inside its own text. */
+main h2 {
+  margin: 4.5rem 0 0.25rem; padding-top: 1.5rem; border-top: 2px solid var(--ink);
+  font: 600 1.45rem/1.3 var(--sans); letter-spacing: -0.01em;
+}
+main section:first-child h2 { margin-top: 3rem; }
+main h3 { margin: 2.75rem 0 0.75rem; padding-top: 1.1rem; border-top: 1px solid var(--rule);
+  font: 600 1.15rem/1.35 var(--sans); color: var(--accent); }
+main h2 + h3 { margin-top: 1.25rem; padding-top: 0; border-top: 0; }
+main h4, main h5, main h6 { margin: 1.75rem 0 0.5rem; font: 600 1rem/1.4 var(--sans); }
+main h5, main h6 { color: var(--muted); }
+main p, main ul, main ol { margin: 0 0 1rem; }
+main li { margin: 0.25rem 0; }
+main strong { font-weight: 650; }
+main blockquote { margin: 1.25rem 0; padding: 0.1rem 0 0.1rem 1rem; border-left: 3px solid var(--rule);
+  color: var(--muted); }
+main code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--wash); padding: 0.1em 0.3em; border-radius: 3px; }
+main pre { background: var(--wash); padding: 0.9rem 1rem; border-radius: 4px; overflow-x: auto; }
+main pre code { background: none; padding: 0; }
+main hr { width: 3rem; margin: 2rem auto; border: 0; border-top: 1px solid var(--rule); }
+
+.table { overflow-x: auto; margin: 0 0 1.25rem; }
+table { border-collapse: collapse; width: 100%; font: 0.86rem/1.45 var(--sans);
+  font-variant-numeric: tabular-nums; }
+th, td { padding: 0.45rem 0.7rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); }
+th { font-weight: 600; border-bottom-color: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+
+@media (max-width: 34rem) {
+  body { font-size: 16px; }
+  .page { padding: 2rem 1rem 3rem; }
+  .masthead h1 { font-size: 2rem; }
+  .masthead .logo svg { height: 1.25rem; }
+  .run { grid-template-columns: 1fr; gap: 0 0; }
+  .run dd { margin-bottom: 0.45rem; }
+  .run .group { white-space: normal; }
+}
+@media print {
+  :root { --paper: #fff; --ink: #000; --muted: #444; --rule: #bbb; --accent: #000; --wash: #f2f2f2;
+    --edge: #bbb; --up: #087a59; --down: #b4372f; --level: #444; }
+  body { font-size: 11pt; }
+  .table { overflow: visible; }
+  .page { max-width: none; padding: 0; }
+  .contents, .to-top { display: none; }
+  main h2 { break-before: page; border-top: 0; margin-top: 0; }
+  main section:first-child h2 { break-before: auto; }
+  main h3, main h4 { break-after: avoid; }
+  a { color: inherit; text-decoration: none; }
+  table { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="page" id="top">
+<header class="masthead">
+<a class="logo" href="https://tauric.ai" rel="noopener" aria-label="Tauric Research"><svg width="993" height="115" viewBox="0 0 993 115" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M189.86 95.0459V37.9779H165.924V29.9259H223.74V37.9779H199.804V95.0459H189.86ZM251.026 46.4259C256.071 46.4259 260.178 47.0272 263.345 48.2299C266.514 49.4032 268.89 51.3686 270.474 54.1259C272.058 56.8832 272.85 60.6379 272.85 65.3899V95.0459H264.666L263.961 89.8979H263.434C261.644 91.7752 259.386 93.2419 256.657 94.2979C253.929 95.3246 251.025 95.8379 247.946 95.8379C244.426 95.8379 241.419 95.2952 238.925 94.2099C236.432 93.0952 234.54 91.5406 233.249 89.5459C231.959 87.5512 231.313 85.2046 231.313 82.5059C231.313 78.2526 232.897 74.9672 236.065 72.6499C239.263 70.3032 244.337 68.8219 251.29 68.2059L263.258 67.0179V64.7299C263.258 61.9139 262.774 59.7139 261.806 58.1299C260.838 56.5459 259.371 55.4312 257.406 54.7859C255.47 54.1406 252.888 53.8179 249.662 53.8179C247.432 53.8179 245.012 54.0086 242.401 54.3899C239.82 54.7712 237.341 55.3432 234.965 56.1059V48.8019C237.312 48.0392 239.908 47.4526 242.754 47.0419C245.628 46.6312 248.386 46.4259 251.026 46.4259ZM250.541 89.0619C252.888 89.0619 255.162 88.6512 257.362 87.8299C259.562 86.9792 261.527 85.7179 263.258 84.0459V72.8259L252.038 73.9259C248.136 74.3659 245.35 75.2166 243.678 76.4779C242.005 77.7099 241.169 79.4699 241.169 81.7579C241.169 84.0752 241.947 85.8792 243.501 87.1699C245.056 88.4312 247.403 89.0619 250.541 89.0619ZM313.339 95.8379C307.59 95.8379 303.087 94.2979 299.831 91.2179C296.575 88.1086 294.947 83.2686 294.947 76.6979V47.1739H304.715V76.1699C304.715 80.1886 305.624 83.0779 307.443 84.8379C309.291 86.5979 311.916 87.4779 315.319 87.4779C317.871 87.4779 320.379 86.9939 322.843 86.0259C325.336 85.0286 327.492 83.5766 329.311 81.6699V47.1739H339.079V95.0459H330.983L330.367 89.9419H329.883C327.624 91.8486 325.072 93.3152 322.227 94.3419C319.382 95.3392 316.419 95.8379 313.339 95.8379ZM362.371 47.1739H370.423L371.171 53.2899H371.743C373.474 51.2072 375.703 49.5792 378.431 48.4059C381.188 47.2326 384.063 46.6459 387.055 46.6459C388.756 46.6459 390.355 46.7926 391.851 47.0859V55.8419C390.414 55.5779 388.654 55.4459 386.571 55.4459C383.99 55.4459 381.364 55.9446 378.695 56.9419C376.026 57.9392 373.84 59.4206 372.139 61.3859V95.0459H362.371V47.1739ZM409.069 95.0459V47.1739H418.837V95.0459H409.069ZM413.953 37.8459C411.871 37.8459 410.287 37.3912 409.201 36.4819C408.145 35.5726 407.617 34.2672 407.617 32.5659C407.617 30.8352 408.145 29.5152 409.201 28.6059C410.287 27.6672 411.871 27.1979 413.953 27.1979C416.036 27.1979 417.605 27.6672 418.661 28.6059C419.747 29.5152 420.289 30.8352 420.289 32.5659C420.289 34.2672 419.747 35.5726 418.661 36.4819C417.605 37.3912 416.036 37.8459 413.953 37.8459ZM464.85 95.9259C456.607 95.9259 450.315 93.8432 445.974 89.6779C441.662 85.5126 439.506 79.3526 439.506 71.1979C439.506 63.0139 441.779 56.8392 446.326 52.6739C450.902 48.5086 457.575 46.4259 466.346 46.4259C470.716 46.4259 474.735 46.9246 478.402 47.9219V55.7099C476.378 55.2406 474.486 54.8886 472.726 54.6539C470.966 54.4192 469.118 54.3019 467.182 54.3019C461.168 54.3019 456.71 55.6512 453.806 58.3499C450.931 61.0486 449.494 65.2872 449.494 71.0659C449.494 76.8739 450.858 81.1566 453.586 83.9139C456.343 86.6712 460.42 88.0499 465.818 88.0499C467.695 88.0499 469.616 87.8886 471.582 87.5659C473.547 87.2139 475.82 86.6712 478.402 85.9379V93.7259C474.236 95.1926 469.719 95.9259 464.85 95.9259ZM574.428 95.0459L553.704 69.0859C553.176 69.1152 552.37 69.1299 551.284 69.1299C548.38 69.1299 544.978 68.9832 541.076 68.6899V95.0459H531.308V31.4659C537.967 29.9699 544.846 29.2219 551.944 29.2219C561.595 29.2219 568.752 30.8059 573.416 33.9739C578.08 37.1126 580.412 42.1286 580.412 49.0219C580.412 54.0086 579.004 58.0859 576.188 61.2539C573.402 64.4219 569.266 66.6366 563.78 67.8979L585.648 95.0459H574.428ZM541.076 61.2099C543.071 61.4152 544.816 61.5619 546.312 61.6499C547.838 61.7379 549.627 61.7819 551.68 61.7819C558.427 61.7819 563.34 60.7699 566.42 58.7459C569.5 56.6926 571.04 53.4952 571.04 49.1539C571.04 46.0739 570.395 43.6099 569.104 41.7619C567.843 39.9139 565.863 38.5792 563.164 37.7579C560.495 36.9366 556.975 36.5259 552.604 36.5259C550.404 36.5259 548.424 36.6139 546.664 36.7899C544.904 36.9659 543.042 37.2299 541.076 37.5819V61.2099ZM642.947 74.0139H608.231C608.407 77.4752 609.155 80.2766 610.475 82.4179C611.795 84.5299 613.775 86.0846 616.415 87.0819C619.055 88.0792 622.443 88.5779 626.579 88.5779C630.686 88.5779 635.233 87.9472 640.219 86.6859V93.9459C635.027 95.2659 630.026 95.9259 625.215 95.9259C616.298 95.9259 609.61 93.9166 605.151 89.8979C600.722 85.8499 598.507 79.6166 598.507 71.1979C598.507 65.9179 599.402 61.4299 601.191 57.7339C602.981 54.0379 605.562 51.2366 608.935 49.3299C612.338 47.3939 616.43 46.4259 621.211 46.4259C628.251 46.4259 633.634 48.5819 637.359 52.8939C641.085 57.1766 642.947 63.3659 642.947 71.4619V74.0139ZM621.079 52.8939C616.973 52.8939 613.834 54.1406 611.663 56.6339C609.493 59.0979 608.334 62.9259 608.187 68.1179H633.751C633.634 62.9259 632.519 59.0979 630.407 56.6339C628.295 54.1406 625.186 52.8939 621.079 52.8939ZM677.365 95.9259C671.352 95.9259 665.896 95.2219 660.997 93.8139V86.7299C666.248 88.1966 671.718 88.9299 677.409 88.9299C681.809 88.9299 684.977 88.3432 686.913 87.1699C688.849 85.9672 689.817 84.2219 689.817 81.9339C689.817 80.7019 689.597 79.6899 689.157 78.8979C688.717 78.0766 687.969 77.4019 686.913 76.8739C685.857 76.3166 684.405 75.8912 682.557 75.5979L674.065 74.2779C669.137 73.4859 665.573 71.9899 663.373 69.7899C661.202 67.5899 660.117 64.6419 660.117 60.9459C660.117 56.4579 661.965 52.9232 665.661 50.3419C669.386 47.7312 675.062 46.4259 682.689 46.4259C685.094 46.4259 687.485 46.5872 689.861 46.9099C692.266 47.2032 694.481 47.6432 696.505 48.2299V55.2699C692.046 54.0379 687.456 53.4219 682.733 53.4219C677.893 53.4219 674.476 54.0526 672.481 55.3139C670.486 56.5752 669.489 58.3206 669.489 60.5499C669.489 62.2219 670.002 63.5859 671.029 64.6419C672.056 65.6686 673.889 66.4166 676.529 66.8859L685.021 68.2059C689.92 68.9686 693.513 70.3766 695.801 72.4299C698.089 74.4832 699.233 77.4606 699.233 81.3619C699.233 84.3832 698.412 86.9792 696.769 89.1499C695.156 91.3206 692.706 92.9926 689.421 94.1659C686.165 95.3392 682.146 95.9259 677.365 95.9259ZM760.579 74.0139H725.863C726.039 77.4752 726.787 80.2766 728.107 82.4179C729.427 84.5299 731.407 86.0846 734.047 87.0819C736.687 88.0792 740.075 88.5779 744.211 88.5779C748.317 88.5779 752.864 87.9472 757.851 86.6859V93.9459C752.659 95.2659 747.657 95.9259 742.847 95.9259C733.929 95.9259 727.241 93.9166 722.783 89.8979C718.353 85.8499 716.139 79.6166 716.139 71.1979C716.139 65.9179 717.033 61.4299 718.823 57.7339C720.612 54.0379 723.193 51.2366 726.567 49.3299C729.969 47.3939 734.061 46.4259 738.843 46.4259C745.883 46.4259 751.265 48.5819 754.991 52.8939C758.716 57.1766 760.579 63.3659 760.579 71.4619V74.0139ZM738.711 52.8939C734.604 52.8939 731.465 54.1406 729.295 56.6339C727.124 59.0979 725.965 62.9259 725.819 68.1179H751.383C751.265 62.9259 750.151 59.0979 748.039 56.6339C745.927 54.1406 742.817 52.8939 738.711 52.8939ZM796.986 46.4259C802.032 46.4259 806.138 47.0272 809.306 48.2299C812.474 49.4032 814.85 51.3686 816.434 54.1259C818.018 56.8832 818.81 60.6379 818.81 65.3899V95.0459H810.626L809.922 89.8979H809.394C807.605 91.7752 805.346 93.2419 802.618 94.2979C799.89 95.3246 796.986 95.8379 793.906 95.8379C790.386 95.8379 787.38 95.2952 784.886 94.2099C782.393 93.0952 780.501 91.5406 779.21 89.5459C777.92 87.5512 777.274 85.2046 777.274 82.5059C777.274 78.2526 778.858 74.9672 782.026 72.6499C785.224 70.3032 790.298 68.8219 797.25 68.2059L809.218 67.0179V64.7299C809.218 61.9139 808.734 59.7139 807.766 58.1299C806.798 56.5459 805.332 55.4312 803.366 54.7859C801.43 54.1406 798.849 53.8179 795.622 53.8179C793.393 53.8179 790.973 54.0086 788.362 54.3899C785.781 54.7712 783.302 55.3432 780.926 56.1059V48.8019C783.273 48.0392 785.869 47.4526 788.714 47.0419C791.589 46.6312 794.346 46.4259 796.986 46.4259ZM796.502 89.0619C798.849 89.0619 801.122 88.6512 803.322 87.8299C805.522 86.9792 807.488 85.7179 809.218 84.0459V72.8259L797.998 73.9259C794.097 74.3659 791.31 75.2166 789.638 76.4779C787.966 77.7099 787.13 79.4699 787.13 81.7579C787.13 84.0752 787.908 85.8792 789.462 87.1699C791.017 88.4312 793.364 89.0619 796.502 89.0619ZM841.524 47.1739H849.576L850.324 53.2899H850.896C852.627 51.2072 854.856 49.5792 857.584 48.4059C860.341 47.2326 863.216 46.6459 866.208 46.6459C867.909 46.6459 869.508 46.7926 871.004 47.0859V55.8419C869.567 55.5779 867.807 55.4459 865.724 55.4459C863.143 55.4459 860.517 55.9446 857.848 56.9419C855.179 57.9392 852.993 59.4206 851.292 61.3859V95.0459H841.524V47.1739ZM909.164 95.9259C900.921 95.9259 894.629 93.8432 890.288 89.6779C885.976 85.5126 883.82 79.3526 883.82 71.1979C883.82 63.0139 886.093 56.8392 890.64 52.6739C895.216 48.5086 901.889 46.4259 910.66 46.4259C915.03 46.4259 919.049 46.9246 922.716 47.9219V55.7099C920.692 55.2406 918.8 54.8886 917.04 54.6539C915.28 54.4192 913.432 54.3019 911.496 54.3019C905.482 54.3019 901.024 55.6512 898.12 58.3499C895.245 61.0486 893.808 65.2872 893.808 71.0659C893.808 76.8739 895.172 81.1566 897.9 83.9139C900.657 86.6712 904.734 88.0499 910.132 88.0499C912.009 88.0499 913.93 87.8886 915.896 87.5659C917.861 87.2139 920.134 86.6712 922.716 85.9379V93.7259C918.55 95.1926 914.033 95.9259 909.164 95.9259ZM941.796 23.9419H951.564V52.2779H952.048C954.248 50.3712 956.756 48.9192 959.572 47.9219C962.417 46.9246 965.395 46.4259 968.504 46.4259C974.019 46.4259 978.375 47.9952 981.572 51.1339C984.769 54.2432 986.368 59.0686 986.368 65.6099V95.0459H976.6V66.0939C976.6 62.0459 975.661 59.1566 973.784 57.4259C971.936 55.6952 969.237 54.8299 965.688 54.8299C963.048 54.8299 960.481 55.3286 957.988 56.3259C955.524 57.2939 953.383 58.7312 951.564 60.6379V95.0459H941.796V23.9419Z" fill="#14C290"/>
+<rect x="0.205322" y="14.873" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="43.1211" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="14.679" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="14.679" y="44.0371" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="44.0371" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="44.0371" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="57.2478" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="86.6055" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="86.6055" y="44.0371" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="101.284" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="58.7158" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="58.7158" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="43.1211" y="87.1592" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="57.2478" y="87.1592" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="73.0205" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="73.0205" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="87.3262" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="87.3262" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="43.1211" y="101.631" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="57.2478" y="101.631" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="101.284" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="15.0187" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="29.6979" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="44.3771" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="44.3771" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="44.3771" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="44.3771" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="87.6662" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="87.6662" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="87.6662" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="87.6662" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="29.6979" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="72.2668" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="29.6979" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="72.2668" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="72.445" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.7506" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="100.716" y="14.873" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+</svg></a>
+<h1><span class="ticker">AAPL</span> <span class="rating level">Hold</span></h1>
+<p class="date">Analysis of 2026-10-23</p>
+<dl class="run"><div class="detail"><dt>Generated</dt><dd>2026-11-14 12:31</dd></div><div class="detail"><dt>Deep model</dt><dd><span class="field">google</span> <span class="field">gemini-3.5-flash-lite</span></dd></div><div class="detail"><dt>Quick model</dt><dd><span class="field">google</span> <span class="field">gemini-3.5-flash-lite</span></dd></div><div class="detail"><dt>Analysts</dt><dd><span class="field">market</span></dd></div><div class="detail"><dt>Debate rounds</dt><dd><span class="group"><span class="name">research</span><span class="field">1</span></span> <span class="group"><span class="name">risk</span><span class="field">1</span></span></dd></div><div class="detail"><dt>Data vendors</dt><dd><span class="group"><span class="name">Prices</span><span class="field">yfinance</span></span> <span class="group"><span class="name">Indicators</span><span class="field">yfinance</span></span> <span class="group"><span class="name">Fundamentals</span><span class="field">sec_edgar</span> <span class="then">→</span> <span class="field">yfinance</span></span> <span class="group"><span class="name">News</span><span class="field">yfinance</span></span> <span class="group"><span class="name">Macro</span><span class="field">fred</span></span> <span class="group"><span class="name">Prediction markets</span><span class="field">polymarket</span></span></dd></div><div class="detail"><dt>Version</dt><dd>TradingAgents 0.7.0</dd></div></dl>
+</header>
+<nav class="contents" aria-label="Sections"><ul><li><a href="#s1"><span class="num">I</span> <span class="label">Analyst Team Reports</span></a><ul><li><a href="#s1-1"><span class="bar"></span> <span class="label">Market Analyst</span></a></li></ul></li><li><a href="#s2"><span class="num">II</span> <span class="label">Research Team Decision</span></a><ul><li><a href="#s2-1"><span class="bar"></span> <span class="label">Bull Researcher</span></a></li><li><a href="#s2-2"><span class="bar"></span> <span class="label">Bear Researcher</span></a></li><li><a href="#s2-3"><span class="bar"></span> <span class="label">Research Manager</span></a></li></ul></li><li><a href="#s3"><span class="num">III</span> <span class="label">Trading Team Plan</span></a><ul><li><a href="#s3-1"><span class="bar"></span> <span class="label">Trader</span></a></li></ul></li><li><a href="#s4"><span class="num">IV</span> <span class="label">Risk Management Team Decision</span></a><ul><li><a href="#s4-1"><span class="bar"></span> <span class="label">Aggressive Analyst</span></a></li><li><a href="#s4-2"><span class="bar"></span> <span class="label">Conservative Analyst</span></a></li><li><a href="#s4-3"><span class="bar"></span> <span class="label">Neutral Analyst</span></a></li></ul></li><li><a href="#s5"><span class="num">V</span> <span class="label">Portfolio Manager Decision</span></a><ul><li><a href="#s5-1"><span class="bar"></span> <span class="label">Portfolio Manager</span></a></li></ul></li></ul></nav>
+<main>
+<section id="s1"><h2>I. Analyst Team Reports</h2><h3 id="s1-1">Market Analyst</h3>
+<h4>Comprehensive Technical Market Analysis: Apple Inc. (<code>AAPL</code>)</h4>
+<p><strong>Analysis Date:</strong> October 23, 2026<br />
+<strong>Current Instrument:</strong> <code>AAPL</code> (Apple Inc.)</p>
+<hr />
+<h5>1. Executive Summary &amp; Market Context</h5>
+<p>As of October 23, 2026, Apple Inc. (<code>AAPL</code>) exhibits a strong, sustained medium-to-long-term upward trend. Price action continues to trade comfortably above major moving averages, supported by robust momentum and volume-weighted structures. This report selects four complementary technical indicators—<strong><code>close_50_sma</code></strong> (Trend), <strong><code>rsi</code></strong> (Momentum), <strong><code>atr</code></strong> (Volatility), and <strong><code>vwma</code></strong> (Volume-weighted confirmation)—to rigorously evaluate <code>AAPL</code>'s market posture.</p>
+<p>Per our deterministic market snapshot on October 23, 2026, <code>AAPL</code> closed at <strong>$347.47</strong>, after reaching an intraday high of <strong>$351.46</strong> and a low of <strong>$345.49</strong>.</p>
+<hr />
+<h5>2. Technical Indicator Selection &amp; Analysis</h5>
+<p>To capture a well-rounded and non-redundant trading profile, the following four indicators were chosen:</p>
+<ol>
+<li>
+<p><strong><code>close_50_sma</code> (50-Day Simple Moving Average)</strong></p>
+<ul>
+<li><strong>Role:</strong> Medium-term trend benchmark and dynamic support.</li>
+<li><strong>Observation:</strong> On October 23, 2026, the 50 SMA stands at <strong>$329.22</strong>, while the longer-term 200 SMA rests at <strong>$293.88</strong>. With the price at <strong>$347.47</strong>, <code>AAPL</code> trades well above both key moving averages, confirming a robust bullish structure. The 50 SMA acts as a crucial dynamic support level in the event of pullbacks.</li>
+</ul>
+</li>
+<li>
+<p><strong><code>rsi</code> (Relative Strength Index)</strong></p>
+<ul>
+<li><strong>Role:</strong> Momentum and overbought/oversold oscillator.</li>
+<li><strong>Observation:</strong> The verified RSI stands at <strong>63.93</strong>. This indicates strong bullish momentum without entering extreme overbought territory (typically &gt;70), leaving room for potential continuation while remaining mindful of near-term consolidation risks.</li>
+</ul>
+</li>
+<li>
+<p><strong><code>atr</code> (Average True Range)</strong></p>
+<ul>
+<li><strong>Role:</strong> Volatility and risk management sizing.</li>
+<li><strong>Observation:</strong> The verified ATR is <strong>$6.41</strong>. This metric provides an objective baseline for setting dynamic stop-loss levels (e.g., placing stops $1.5 \times \text{ATR}$ or $2 \times \text{ATR}$ below entry) and tailoring position sizing to prevailing market conditions.</li>
+</ul>
+</li>
+<li>
+<p><strong><code>vwma</code> (Volume Weighted Moving Average)</strong></p>
+<ul>
+<li><strong>Role:</strong> Volume-integrated price trend confirmation.</li>
+<li><strong>Observation:</strong> Aligning close price action ($347.47) and the 10 EMA ($342.99) with volume-weighted metrics confirms that buying pressure accompanies upward price progression rather than occurring on low-volume anomalies.</li>
+</ul>
+</li>
+</ol>
+<hr />
+<h5>3. Actionable Insights &amp; Trading Recommendations</h5>
+<ul>
+<li><strong>Trend Following Strategy:</strong> The alignment of price ($347.47) &gt; 50 SMA ($329.22) &gt; 200 SMA ($293.88) signals that continuation strategies remain favored over counter-trend shorting.</li>
+<li><strong>Risk Management:</strong> Utilize the <strong>ATR ($6.41)</strong> to establish disciplined stop-loss parameters. For instance, a swing trader entering near current levels could set a trailing stop at approximately $334.65 ($347.47 - $12.82 [2x ATR]).</li>
+<li><strong>Momentum Guardrails:</strong> With an RSI of <strong>63.93</strong>, momentum is healthy but approaching the upper threshold. Traders should monitor Bollinger Bands (<code>boll_ub</code> at <strong>$349.56</strong>) and intraday highs (<code>$351.46</code>) for potential resistance testing or mean reversion.</li>
+</ul>
+<hr />
+<h5>4. Key Metrics Summary Table</h5>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Category / Metric</th>
+<th>Indicator Name</th>
+<th>Value (As of Oct 23, 2026)</th>
+<th>Market Interpretation / Actionable Insight</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Price Action</strong></td>
+<td><code>Close</code></td>
+<td>$347.47</td>
+<td>Strong close near upper Bollinger Band ($349.56).</td>
+</tr>
+<tr>
+<td><strong>Trend</strong></td>
+<td><code>close_50_sma</code></td>
+<td>$329.22</td>
+<td>Medium-term dynamic support; price is firmly bullish above it.</td>
+</tr>
+<tr>
+<td><strong>Trend (Long)</strong></td>
+<td><code>close_200_sma</code></td>
+<td>$293.88</td>
+<td>Confirms major structural macro bull market.</td>
+</tr>
+<tr>
+<td><strong>Momentum</strong></td>
+<td><code>rsi</code></td>
+<td>63.93</td>
+<td>Bullish momentum active; room before overbought exhaustion (&gt;70).</td>
+</tr>
+<tr>
+<td><strong>Volatility</strong></td>
+<td><code>atr</code></td>
+<td>$6.41</td>
+<td>Use for stop-loss spacing and volatility-adjusted sizing.</td>
+</tr>
+<tr>
+<td><strong>Bollinger Bands</strong></td>
+<td><code>boll_ub</code> / <code>boll_lb</code></td>
+<td>$349.56 / $327.74</td>
+<td>Upper band acts as immediate resistance / breakout threshold.</td>
+</tr>
+<tr>
+<td><strong>MACD</strong></td>
+<td><code>macd</code> / <code>macds</code></td>
+<td>4.37 / 4.06 (Hist: 0.31)</td>
+<td>Positive MACD histogram confirms steady buying momentum.</td>
+</tr>
+</tbody>
+</table></div>
+</section><section id="s2"><h2>II. Research Team Decision</h2><h3 id="s2-1">Bull Researcher</h3>
+<p>Bull Analyst: Let’s dive right into the numbers and market structure, because when it comes to <strong><code>AAPL</code></strong>, the data tells an undeniable story of strength, resilience, and dominant market positioning.</p>
+<p>As of October 23, 2026, <strong><code>AAPL</code></strong> is trading at <strong>$347.47</strong>, comfortably pressing near its upper Bollinger Band resistance of <strong>$349.56</strong> after touching an intraday high of <strong>$351.46</strong>. If anyone is looking at this chart and seeing vulnerability, they are misreading the tape entirely. We are looking at a masterclass in trend continuation.</p>
+<p>Here is why the bull case for <strong><code>AAPL</code></strong> remains exceptionally strong:</p>
+<h6>1. Unstoppable Trend and Structural Dominance</h6>
+<p>Let's look at the moving averages, because they don't lie. The 50-day Simple Moving Average (<code>close_50_sma</code>) sits at <strong>$329.22</strong>, while the 200-day Simple Moving Average (<code>close_200_sma</code>) rests safely down at <strong>$293.88</strong>. With the price sitting well above both key benchmarks, <strong><code>AAPL</code></strong> is in a textbook medium-to-long-term macro bull market. The market is rewarding buyers at every turn, treating the 50 SMA as a rock-solid dynamic support line.</p>
+<h6>2. Healthy Momentum with Room to Run</h6>
+<p>Skeptics love to cry &quot;overbought&quot; the second a stock catches a strong tailwind, but look at the Relative Strength Index (<code>rsi</code>). At <strong>63.93</strong>, <strong><code>AAPL</code></strong> has robust, active bullish momentum <em>without</em> flashing extreme overbought exhaustion (&gt;70). Combined with a positive MACD histogram (<strong>0.31</strong>) and rising volume-weighted confirmation (<code>vwma</code>), buyers are driving this price action with conviction—this isn't a low-volume anomaly; it is heavy institutional accumulation.</p>
+<h6>3. Scalability and Market Resilience</h6>
+<p>Skeptics often try to paint <strong><code>AAPL</code></strong> as a mature giant past its prime, but that ignores its peerless ecosystem branding, unmatched customer loyalty, and massive scalability across hardware, services, and emerging tech verticals. When volatility hits, <strong><code>AAPL</code></strong> provides a reliable Average True Range (<code>atr</code>) profile of <strong>$6.41</strong>, allowing disciplined investors to manage risk effectively while participating in an upward trajectory that consistently outperforms the broader market.</p>
+<h6>Countering the Bearish Hesitation</h6>
+<p>I know the bear camp is likely sitting on the sidelines, pointing to near-term resistance near the $350 psychological barrier or the upper Bollinger Band (<code>boll_ub</code> at $349.56) and warning of a pullback. But trading against a primary trend backed by this kind of momentum is a losing battle. A minor consolidation or test of resistance isn't a reversal—it's a breather for a stock gearing up to break new ground.</p>
+<p><strong><code>AAPL</code></strong> is showing us elite market posture, pristine technical alignment, and sustained buying pressure. The bull case isn't just surviving; it's thriving.</p>
+<p>Bring on the counterarguments—let’s see how the bear camp plans to argue against a technical blueprint this clean!</p>
+<h3 id="s2-2">Bear Researcher</h3>
+<p>Bear Analyst: Look, I appreciate the enthusiasm, and sure, if you only look at a surface-level snapshot of a chart, a price of $347.47 sitting above a 50 SMA ($329.22) looks cozy. But let’s step away from the moving averages for a second and look at the actual reality of what you're buying here. You are chasing <strong><code>AAPL</code></strong> right up against a wall, ignoring glaring structural and risk realities.</p>
+<p>Let's dismantle this so-called &quot;masterclass in trend continuation&quot; point by point:</p>
+<h6>1. You're Chasing the Very Top of the Range</h6>
+<p>You're pounding the table about a bullish breakout, but let's look at the actual boundaries staring you in the face. <strong><code>AAPL</code></strong> closed at $347.47 on October 23, 2026, right against its upper Bollinger Band (<code>boll_ub</code>) of <strong>$349.56</strong>, after topping out intraday at <strong>$351.46</strong>. That isn't a springboard; that is a brick wall.</p>
+<p>Buying an asset when it is pressed directly against its upper volatility band with an RSI ticking up at <strong>63.93</strong> is the definition of late-stage FOMO. You are entering right before the exhaustion threshold (&gt;70) while leaving yourself virtually zero margin for error. If that $350 psychological resistance holds—and history suggests stretched rallies near upper bands frequently face mean reversion—you're looking at an immediate, sharp correction right back toward that 50 SMA ($329.22). That’s nearly a <strong>$20 downside risk</strong> versus very limited upside room before hitting technical compression.</p>
+<h6>2. The Volatility Trap and Risk/Reward Asymmetry</h6>
+<p>You mentioned the Average True Range (<code>atr</code>) sits at <strong>$6.41</strong>, and even suggested using it to set trailing stops. But let's look at what that actually means for your risk profile. With an ATR of $6.41, standard volatility-adjusted stops (say, 2x ATR) mean you are risking nearly <strong>$13 a share</strong> on the downside just to chase a stock that is already extended into its upper band.</p>
+<p>When you combine a narrow band overhead with a wide volatility footprint, the risk-to-reward ratio here is completely inverted. You're taking on outsized downside variance to capture marginal gains at the very peak of a medium-term move. That’s not disciplined investing; that’s catching falling knives disguised as momentum.</p>
+<h6>3. Ignoring Macro Exhaustion and the &quot;Mature Giant&quot; Trap</h6>
+<p>You brushed off the argument that <strong><code>AAPL</code></strong> is a mature giant past its prime, claiming ecosystem branding saves it from gravity. But let's be real: at a massive valuation, perfection is already priced in. When a mega-cap trades this far above its 200 SMA ($293.88)—a staggering gap of over $53—it leaves the stock dangerously vulnerable to broader macroeconomic shifts, tightening liquidity, or institutional profit-taking.</p>
+<p>Institutional &quot;accumulation&quot; at $347 isn't smart money driving a new leg up; often, at these elevated extensions, it’s late retail volume providing the liquidity for smart money to quietly distribute shares and lock in profits before the cycle turns.</p>
+<h6>The Bottom Line</h6>
+<p>Your bull case relies entirely on the assumption that lines will keep going up simply because they went up yesterday. But markets don't move in straight lines, and <strong><code>AAPL</code></strong> is flashing textbook over-extension warnings right beneath major resistance.</p>
+<p>You're paying top-dollar for a mature tech giant at the absolute ceiling of its current channel, accepting terrible risk-adjusted asymmetry just to ride a lagging indicator. I'll gladly sit on the sidelines—or look for shorts on a rejection at $350—while you hold the bag at the top. Care to defend buying the absolute peak?</p>
+<h3 id="s2-3">Research Manager</h3>
+<p><strong>Recommendation</strong>: Hold</p>
+<p><strong>Rationale</strong>: The debate highlights a classic tension between trend continuation and valuation/over-extension. The bull analyst points out that AAPL is in a healthy medium-to-long-term macro bull market, comfortably trading well above its 50-day SMA ($329.22) and 200-day SMA ($293.88), supported by a solid RSI of 63.93 and active institutional momentum without extreme overbought exhaustion. Conversely, the bear analyst correctly identifies that AAPL is pressed directly against its upper Bollinger Band ($349.56) and psychological resistance at $350, creating a poor immediate risk-reward ratio and vulnerability to mean reversion. While the macro trend and momentum clearly favor the bulls, entering new long positions right at the upper boundary with a $6.41 ATR creates unfavorable short-term asymmetry. Consequently, the evidence balances out: the trend is not broken, but chasing the absolute peak is unwarranted, making Hold the most prudent stance.</p>
+<p><strong>Strategic Actions</strong>: Maintain current standard allocations in AAPL without adding new capital at these elevated resistance levels. Instruct the trader to monitor the $350 psychological resistance and upper Bollinger Band boundary ($349.56). Prepare to accumulate on a healthy pullback toward the 50-day simple moving average ($329.22) if a mean reversion occurs, while holding existing positions tight using ATR-based risk parameters.</p>
+</section><section id="s3"><h2>III. Trading Team Plan</h2><h3 id="s3-1">Trader</h3>
+<p><strong>Action</strong>: Hold</p>
+<p><strong>Reasoning</strong>: The research plan advocates a Hold stance because AAPL is trading near its upper Bollinger Band at $349.56 and psychological resistance at $350, creating an unfavorable short-term risk-reward entry despite a strong macro uptrend above the 50-day SMA ($329.22). Rather than chasing the market at current levels of $347.47, maintaining the current position and waiting for a potential pullback offers a better asymmetry. Therefore, no new capital is added at this time.</p>
+<p><strong>Entry Price</strong>: not provided</p>
+<p><strong>Stop Loss</strong>: 334.65</p>
+<p><strong>Position Sizing</strong>: Maintain standard allocation without adding new capital</p>
+<p>FINAL TRANSACTION PROPOSAL: <strong>HOLD</strong></p>
+</section><section id="s4"><h2>IV. Risk Management Team Decision</h2><h3 id="s4-1">Aggressive Analyst</h3>
+<p>Aggressive Analyst: Listen, let’s cut through the hesitation. While the conservative and neutral camps want to freeze up and wait for a mythical dip on <code>AAPL</code>, they are letting fear dictate strategy. Look at the hard numbers from our October 23, 2026 technical report: <code>AAPL</code> is trading at a robust $347.47, firmly entrenched in a powerhouse macro uptrend. We are sitting comfortably above the 50-day SMA at $329.22 and the 200-day SMA at $293.88. That isn't a market on the verge of collapse; that is a juggernaut in full motion.</p>
+<p>The cautious voices point to the upper Bollinger Band at $349.56 and psychological resistance at $350 as reasons to hold off and wait for a pullback. But waiting for a pullback in a surging bull market is a recipe for missing the entire move. Let's look at the momentum: the RSI is sitting at a healthy 63.93. It is strong, it is active, and crucially, it is <em>not</em> overbought. We have plenty of runway before hitting the exhaustion threshold of 70. Coupled with a positive MACD histogram confirming steady buying momentum and a volume-weighted structure proving institutional accumulation, every data point screams continuation, not exhaustion.</p>
+<p>If we sit on our hands waiting for a dip to $334 or lower, we risk watching <code>AAPL</code> shatter that $350 resistance and leave us in the dust. The ATR gives us a clear volatility baseline of $6.41, meaning we can cleanly manage our risk with a well-placed stop-loss around $334.65 without sacrificing our upside exposure.</p>
+<p>To the conservative and neutral analysts advocating for inaction: your caution is going to cost us alpha. While you wait for safety, the market rewards the bold. We need to aggressively target this breakout, leverage the strong structural momentum of <code>AAPL</code>, and capitalize on the upside before the rest of the street catches on. Hesitation is the greatest risk of all.</p>
+<h3 id="s4-2">Conservative Analyst</h3>
+<p>Conservative Analyst: The aggressive analyst calls caution fear, but as a risk analyst, I call it basic capital preservation. Chasing a stock that is trading right up against its upper Bollinger Band at $349.56 and knocking on the door of major psychological resistance at $350 is not boldness; it is undisciplined speculation.</p>
+<p>The aggressive camp points to the RSI of 63.93 and claims we have plenty of runway before hitting overbought territory. But they are completely ignoring the immediate overhead friction. When an asset like <code>AAPL</code> is sitting at $347.47—just a fraction away from the $350 resistance level and the upper band boundary—the risk-reward ratio for entering <em>right here</em> is heavily skewed against us. Entering at the very top of a near-term range exposes us to immediate mean-reversion pullbacks, turning a momentary breakout attempt into an instant unrealized loss.</p>
+<p>Furthermore, relying on a stop-loss at $334.65—which is roughly two ATR units away ($6.41 ATR)—might sound managed on paper, but taking on a potential drop of over $12 per share just to capture a few late-stage dollars of upside is poor risk mitigation. If <code>AAPL</code> hits that resistance and pulls back toward its 50-day simple moving average at $329.22, an aggressive long entry right now leaves the firm holding a needlessly underwater position.</p>
+<p>Holding our current allocation and refusing to deploy new capital at these inflated levels is the only prudent choice. We secure our capital, avoid buying at the absolute local peak, and patiently wait for a healthier, lower-risk entry point where the asymmetry actually favors our bottom line.</p>
+<h3 id="s4-3">Neutral Analyst</h3>
+<p>Neutral Analyst: Both the aggressive and conservative perspectives have valid points, but each leans too far into an extreme that compromises disciplined risk management for <code>AAPL</code>.</p>
+<p>Starting with the aggressive analyst, dismissing overhead resistance at the $350 psychological level and the upper Bollinger Band at $349.56 is overly optimistic. While it is true that the macro uptrend is strong—with <code>AAPL</code> comfortably above the 50-day SMA at $329.22 and the 200-day SMA at $293.88, alongside a healthy RSI of 63.93—ignoring immediate price friction is asking for short-term slippage. Entering aggressively right at $347.47 provides a poor risk-reward entry because a standard two-ATR stop-loss at $334.65 exposes capital to a significant $12.82 drawdown just to chase a minor breakout. That is not capturing alpha; that is absorbing unnecessary volatility.</p>
+<p>On the other hand, the conservative analyst's stance is overly restrictive and borders on paralysis by analysis. Waiting for a deep pullback toward the 50-day SMA at $329.22 ignores the reality of a powerhouse market structure. In strong momentum phases defined by a positive MACD histogram and institutional accumulation via volume-weighted metrics, waiting for a major dip often means missing the continuation entirely while the stock grinds higher. Total inaction risks opportunity cost, treating every near-term peak as a guaranteed top rather than recognizing that strong trends can &quot;walk the bands&quot; for extended periods.</p>
+<p>As the neutral risk analyst, the balanced middle ground is clear. We do not need to aggressively chase new capital deployment at $347.47 right beneath resistance, nor do we need to sit on our hands passively hoping for a steep correction. Instead, we maintain our current standard allocation without adding new capital, respecting the immediate overhead resistance at $350. However, we also prep limit or scale-in orders closer to dynamic support levels or wait for a confirmed, high-volume breakout <em>above</em> $350 before deploying fresh funds. This approach protects us from buying the local top while keeping us nimble enough to capture the macro uptrend without sacrificing our capital base.</p>
+</section><section id="s5"><h2>V. Portfolio Manager Decision</h2><h3 id="s5-1">Portfolio Manager</h3>
+<p><strong>Rating</strong>: Hold</p>
+<p><strong>Executive Summary</strong>: Maintain standard allocations in AAPL without adding new capital at current elevated resistance levels near $350. Monitor the upper Bollinger Band boundary ($349.56) and psychological resistance, preparing to accumulate on pullbacks toward the 50-day simple moving average ($329.22). Maintain existing positions tight using ATR-based risk parameters with a stop-loss at $334.65.</p>
+<p><strong>Investment Thesis</strong>: The decision to Hold is anchored in the balance of technical evidence highlighted during the risk analysts' debate. On one hand, AAPL is supported by a robust medium-to-long-term macro uptrend, trading safely above its 50-day SMA ($329.22) and 200-day SMA ($293.88), with a healthy RSI of 63.93 indicating that momentum is active and not yet extremely overbought. Conversely, the asset is pressing directly against its upper Bollinger Band ($349.56) and major psychological resistance at $350, creating unfavorable short-term risk-reward asymmetry for new capital deployments. Entering aggressively right at $347.47 forces a stop-loss at $334.65 that exposes capital to a significant drawdown just to chase late-stage upside. While the aggressive analyst's push for trend continuation and the conservative analyst's call for capital preservation both hold merit, the evidence balances out: the overarching macro trend is strong and unbroken, but chasing the absolute peak is unwarranted. What would change this stance is either a confirmed, high-volume breakout cleanly above $350 or a mean-reversion pullback toward dynamic support at the 50-day SMA that offers a more favorable entry asymmetry.</p>
+<p><strong>Price Target</strong>: not provided</p>
+<p><strong>Time Horizon</strong>: 3-6 months</p>
+</section>
+</main>
+<footer class="credit"><a href="https://github.com/TauricResearch/TradingAgents" rel="noopener">TradingAgents</a> powered by <a class="brand" href="https://github.com/TauricResearch" rel="noopener">Tauric Research</a></footer>
+</div>
+<a class="to-top" href="#top">Top</a>
+</body>
+</html>

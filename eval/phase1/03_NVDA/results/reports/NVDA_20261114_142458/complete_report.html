@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<title>NVDA 2026-10-23 Overweight: TradingAgents report</title>
+<style>
+:root {
+  --paper: #fbfbfa; --ink: #1c2126; --muted: #5d6670; --rule: #e2e5e8; --wash: #f2f4f5;
+  --accent: #087a59; --up: #087a59; --down: #b4372f; --level: #5d6670; --edge: #d3d8dc; --mark: #878f97;
+  --serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #131a1f; --ink: #e4e8eb; --muted: #9aa6af; --rule: #263239; --wash: #1a242a;
+    --accent: #14c290; --up: #14c290; --down: #ef6f63; --level: #9aa6af; --edge: #3d4c55; --mark: #66737c;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .masthead .logo [stroke="#363636"] { stroke: var(--muted); }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 17px/1.62 var(--serif); font-kerning: normal;
+}
+.page { max-width: 46rem; margin: 0 auto; padding: 3.5rem 1.5rem 6rem; }
+main h2, main h3 { scroll-margin-top: 1rem; }
+a { color: var(--accent); text-underline-offset: 0.15em; }
+h1, h2, h3, h4 { text-wrap: balance; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.masthead { padding-bottom: 1.75rem; border-bottom: 1px solid var(--rule); }
+/* The logo leads at the top left, where readers look for it, 24px tall (the usual
+   on-screen floor for a wordmark) with at least its height clear below. */
+.masthead .logo { display: block; width: fit-content; margin: 0 0 2.25rem; }
+.masthead .logo svg { display: block; height: 1.5rem; width: auto; }
+.masthead h1 {
+  margin: 0; font: 600 2.6rem/1.1 var(--sans); letter-spacing: -0.02em;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2em 0.5em;
+}
+.masthead .rating { font-weight: 500; }
+.rating.up { color: var(--up); } .rating.down { color: var(--down); } .rating.level { color: var(--level); }
+.rating.review { color: var(--muted); font-style: italic; }
+.masthead .date { margin: 0.55rem 0 1.5rem; font: 1rem/1.4 var(--sans); color: var(--muted); }
+.run { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.45rem 1.25rem;
+  font: 0.85rem/1.5 var(--sans); }
+.run > div { display: contents; }
+.run dt { color: var(--muted); }
+.run dd { margin: 0; overflow-wrap: anywhere; }
+.run .note dd { color: var(--down); }
+.field { display: inline-block; margin: 0 0.15rem 0.15rem 0; padding: 0 0.4rem; border: 1px solid var(--edge);
+  border-radius: 4px; background: var(--wash); font: 0.8rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.run .group { display: inline-block; margin-right: 0.9rem; white-space: nowrap; }
+.run .group > .name { color: var(--muted); margin-right: 0.3rem; }
+.run .then { color: var(--muted); margin: 0 0.2rem; }
+
+/* The sections: listed under the header on narrow screens. On wide ones, a
+   quiet rail centred on the left edge (numerals for the sections, short bars
+   for their agents) that opens into the full list when pointed at or focused. */
+.contents { margin: 2.25rem 0 0; font: 0.9rem/1.45 var(--sans); }
+.contents ul { margin: 0; padding: 0; list-style: none; }
+.contents > ul > li { margin: 0 0 0.75rem; }
+.contents ul ul { margin-top: 0.2rem; padding-left: 1.6rem; font-size: 0.85rem; }
+.contents ul ul li { margin: 0.1rem 0; }
+.contents a { display: flex; align-items: center; gap: 0.6rem; color: var(--muted); text-decoration: none; }
+.contents > ul > li > a { color: var(--ink); }
+.contents .num { min-width: 1.6rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.contents .bar { display: none; }
+.contents a:hover .label, .contents a:focus-visible .label { color: var(--accent); text-decoration: underline; }
+.to-top { position: fixed; right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom));
+  padding: 0.25rem 0.6rem; border: 1px solid var(--edge); border-radius: 4px; background: var(--paper);
+  color: var(--muted); font: 0.8rem/1.4 var(--sans); text-decoration: none; }
+
+@media (min-width: 60rem) {
+  .contents { position: fixed; left: 1rem; top: 50%; transform: translateY(-50%); z-index: 1;
+    max-height: 86vh; overflow-y: auto; overscroll-behavior: contain; margin: 0;
+    padding: 0.7rem 0.9rem; border: 1px solid transparent; border-radius: 6px;
+    transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s; }
+  .contents > ul > li { margin: 0 0 0.35rem; }
+  .contents ul ul { margin-top: 0; padding-left: 0; }
+  .contents ul ul li { margin: 0; }
+  /* Marks reach 3:1 contrast and rows 24px, the WCAG 2.2 floors for a control's
+     visual cue and its pointer target. */
+  .contents a { min-height: 1.5rem; }
+  .contents .num { min-width: 1.4rem; }
+  .contents .bar { display: block; flex: none; width: 1.25rem; height: 2px; margin-left: 0.2rem;
+    border-radius: 1px; background: var(--mark); }
+  .contents .label { max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap;
+    transition: opacity 0.15s, max-width 0.2s; }
+  .contents:hover, .contents:focus-within { background: var(--paper); border-color: var(--rule);
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.08); }
+  .contents:hover .label, .contents:focus-within .label { max-width: 18rem; opacity: 1; }
+  .contents a:hover .bar, .contents a:focus-visible .bar { background: var(--accent); }
+  .to-top { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .contents, .contents .label { transition: none; }
+}
+
+/* The maker's credit: one quiet line at the foot. */
+.credit { margin-top: 4.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule);
+  color: var(--muted); font: 0.8rem/1.4 var(--sans); }
+.credit a { color: inherit; text-decoration: none; }
+.credit a.brand { color: var(--accent); }
+.credit a:hover, .credit a:focus-visible { text-decoration: underline; }
+
+/* Three levels of separation: the five groups, the agents within a group, and
+   breaks an agent draws inside its own text. */
+main h2 {
+  margin: 4.5rem 0 0.25rem; padding-top: 1.5rem; border-top: 2px solid var(--ink);
+  font: 600 1.45rem/1.3 var(--sans); letter-spacing: -0.01em;
+}
+main section:first-child h2 { margin-top: 3rem; }
+main h3 { margin: 2.75rem 0 0.75rem; padding-top: 1.1rem; border-top: 1px solid var(--rule);
+  font: 600 1.15rem/1.35 var(--sans); color: var(--accent); }
+main h2 + h3 { margin-top: 1.25rem; padding-top: 0; border-top: 0; }
+main h4, main h5, main h6 { margin: 1.75rem 0 0.5rem; font: 600 1rem/1.4 var(--sans); }
+main h5, main h6 { color: var(--muted); }
+main p, main ul, main ol { margin: 0 0 1rem; }
+main li { margin: 0.25rem 0; }
+main strong { font-weight: 650; }
+main blockquote { margin: 1.25rem 0; padding: 0.1rem 0 0.1rem 1rem; border-left: 3px solid var(--rule);
+  color: var(--muted); }
+main code { font: 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--wash); padding: 0.1em 0.3em; border-radius: 3px; }
+main pre { background: var(--wash); padding: 0.9rem 1rem; border-radius: 4px; overflow-x: auto; }
+main pre code { background: none; padding: 0; }
+main hr { width: 3rem; margin: 2rem auto; border: 0; border-top: 1px solid var(--rule); }
+
+.table { overflow-x: auto; margin: 0 0 1.25rem; }
+table { border-collapse: collapse; width: 100%; font: 0.86rem/1.45 var(--sans);
+  font-variant-numeric: tabular-nums; }
+th, td { padding: 0.45rem 0.7rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--rule); }
+th { font-weight: 600; border-bottom-color: var(--muted); }
+tbody tr:last-child td { border-bottom: 0; }
+
+@media (max-width: 34rem) {
+  body { font-size: 16px; }
+  .page { padding: 2rem 1rem 3rem; }
+  .masthead h1 { font-size: 2rem; }
+  .masthead .logo svg { height: 1.25rem; }
+  .run { grid-template-columns: 1fr; gap: 0 0; }
+  .run dd { margin-bottom: 0.45rem; }
+  .run .group { white-space: normal; }
+}
+@media print {
+  :root { --paper: #fff; --ink: #000; --muted: #444; --rule: #bbb; --accent: #000; --wash: #f2f2f2;
+    --edge: #bbb; --up: #087a59; --down: #b4372f; --level: #444; }
+  body { font-size: 11pt; }
+  .table { overflow: visible; }
+  .page { max-width: none; padding: 0; }
+  .contents, .to-top { display: none; }
+  main h2 { break-before: page; border-top: 0; margin-top: 0; }
+  main section:first-child h2 { break-before: auto; }
+  main h3, main h4 { break-after: avoid; }
+  a { color: inherit; text-decoration: none; }
+  table { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="page" id="top">
+<header class="masthead">
+<a class="logo" href="https://tauric.ai" rel="noopener" aria-label="Tauric Research"><svg width="993" height="115" viewBox="0 0 993 115" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M189.86 95.0459V37.9779H165.924V29.9259H223.74V37.9779H199.804V95.0459H189.86ZM251.026 46.4259C256.071 46.4259 260.178 47.0272 263.345 48.2299C266.514 49.4032 268.89 51.3686 270.474 54.1259C272.058 56.8832 272.85 60.6379 272.85 65.3899V95.0459H264.666L263.961 89.8979H263.434C261.644 91.7752 259.386 93.2419 256.657 94.2979C253.929 95.3246 251.025 95.8379 247.946 95.8379C244.426 95.8379 241.419 95.2952 238.925 94.2099C236.432 93.0952 234.54 91.5406 233.249 89.5459C231.959 87.5512 231.313 85.2046 231.313 82.5059C231.313 78.2526 232.897 74.9672 236.065 72.6499C239.263 70.3032 244.337 68.8219 251.29 68.2059L263.258 67.0179V64.7299C263.258 61.9139 262.774 59.7139 261.806 58.1299C260.838 56.5459 259.371 55.4312 257.406 54.7859C255.47 54.1406 252.888 53.8179 249.662 53.8179C247.432 53.8179 245.012 54.0086 242.401 54.3899C239.82 54.7712 237.341 55.3432 234.965 56.1059V48.8019C237.312 48.0392 239.908 47.4526 242.754 47.0419C245.628 46.6312 248.386 46.4259 251.026 46.4259ZM250.541 89.0619C252.888 89.0619 255.162 88.6512 257.362 87.8299C259.562 86.9792 261.527 85.7179 263.258 84.0459V72.8259L252.038 73.9259C248.136 74.3659 245.35 75.2166 243.678 76.4779C242.005 77.7099 241.169 79.4699 241.169 81.7579C241.169 84.0752 241.947 85.8792 243.501 87.1699C245.056 88.4312 247.403 89.0619 250.541 89.0619ZM313.339 95.8379C307.59 95.8379 303.087 94.2979 299.831 91.2179C296.575 88.1086 294.947 83.2686 294.947 76.6979V47.1739H304.715V76.1699C304.715 80.1886 305.624 83.0779 307.443 84.8379C309.291 86.5979 311.916 87.4779 315.319 87.4779C317.871 87.4779 320.379 86.9939 322.843 86.0259C325.336 85.0286 327.492 83.5766 329.311 81.6699V47.1739H339.079V95.0459H330.983L330.367 89.9419H329.883C327.624 91.8486 325.072 93.3152 322.227 94.3419C319.382 95.3392 316.419 95.8379 313.339 95.8379ZM362.371 47.1739H370.423L371.171 53.2899H371.743C373.474 51.2072 375.703 49.5792 378.431 48.4059C381.188 47.2326 384.063 46.6459 387.055 46.6459C388.756 46.6459 390.355 46.7926 391.851 47.0859V55.8419C390.414 55.5779 388.654 55.4459 386.571 55.4459C383.99 55.4459 381.364 55.9446 378.695 56.9419C376.026 57.9392 373.84 59.4206 372.139 61.3859V95.0459H362.371V47.1739ZM409.069 95.0459V47.1739H418.837V95.0459H409.069ZM413.953 37.8459C411.871 37.8459 410.287 37.3912 409.201 36.4819C408.145 35.5726 407.617 34.2672 407.617 32.5659C407.617 30.8352 408.145 29.5152 409.201 28.6059C410.287 27.6672 411.871 27.1979 413.953 27.1979C416.036 27.1979 417.605 27.6672 418.661 28.6059C419.747 29.5152 420.289 30.8352 420.289 32.5659C420.289 34.2672 419.747 35.5726 418.661 36.4819C417.605 37.3912 416.036 37.8459 413.953 37.8459ZM464.85 95.9259C456.607 95.9259 450.315 93.8432 445.974 89.6779C441.662 85.5126 439.506 79.3526 439.506 71.1979C439.506 63.0139 441.779 56.8392 446.326 52.6739C450.902 48.5086 457.575 46.4259 466.346 46.4259C470.716 46.4259 474.735 46.9246 478.402 47.9219V55.7099C476.378 55.2406 474.486 54.8886 472.726 54.6539C470.966 54.4192 469.118 54.3019 467.182 54.3019C461.168 54.3019 456.71 55.6512 453.806 58.3499C450.931 61.0486 449.494 65.2872 449.494 71.0659C449.494 76.8739 450.858 81.1566 453.586 83.9139C456.343 86.6712 460.42 88.0499 465.818 88.0499C467.695 88.0499 469.616 87.8886 471.582 87.5659C473.547 87.2139 475.82 86.6712 478.402 85.9379V93.7259C474.236 95.1926 469.719 95.9259 464.85 95.9259ZM574.428 95.0459L553.704 69.0859C553.176 69.1152 552.37 69.1299 551.284 69.1299C548.38 69.1299 544.978 68.9832 541.076 68.6899V95.0459H531.308V31.4659C537.967 29.9699 544.846 29.2219 551.944 29.2219C561.595 29.2219 568.752 30.8059 573.416 33.9739C578.08 37.1126 580.412 42.1286 580.412 49.0219C580.412 54.0086 579.004 58.0859 576.188 61.2539C573.402 64.4219 569.266 66.6366 563.78 67.8979L585.648 95.0459H574.428ZM541.076 61.2099C543.071 61.4152 544.816 61.5619 546.312 61.6499C547.838 61.7379 549.627 61.7819 551.68 61.7819C558.427 61.7819 563.34 60.7699 566.42 58.7459C569.5 56.6926 571.04 53.4952 571.04 49.1539C571.04 46.0739 570.395 43.6099 569.104 41.7619C567.843 39.9139 565.863 38.5792 563.164 37.7579C560.495 36.9366 556.975 36.5259 552.604 36.5259C550.404 36.5259 548.424 36.6139 546.664 36.7899C544.904 36.9659 543.042 37.2299 541.076 37.5819V61.2099ZM642.947 74.0139H608.231C608.407 77.4752 609.155 80.2766 610.475 82.4179C611.795 84.5299 613.775 86.0846 616.415 87.0819C619.055 88.0792 622.443 88.5779 626.579 88.5779C630.686 88.5779 635.233 87.9472 640.219 86.6859V93.9459C635.027 95.2659 630.026 95.9259 625.215 95.9259C616.298 95.9259 609.61 93.9166 605.151 89.8979C600.722 85.8499 598.507 79.6166 598.507 71.1979C598.507 65.9179 599.402 61.4299 601.191 57.7339C602.981 54.0379 605.562 51.2366 608.935 49.3299C612.338 47.3939 616.43 46.4259 621.211 46.4259C628.251 46.4259 633.634 48.5819 637.359 52.8939C641.085 57.1766 642.947 63.3659 642.947 71.4619V74.0139ZM621.079 52.8939C616.973 52.8939 613.834 54.1406 611.663 56.6339C609.493 59.0979 608.334 62.9259 608.187 68.1179H633.751C633.634 62.9259 632.519 59.0979 630.407 56.6339C628.295 54.1406 625.186 52.8939 621.079 52.8939ZM677.365 95.9259C671.352 95.9259 665.896 95.2219 660.997 93.8139V86.7299C666.248 88.1966 671.718 88.9299 677.409 88.9299C681.809 88.9299 684.977 88.3432 686.913 87.1699C688.849 85.9672 689.817 84.2219 689.817 81.9339C689.817 80.7019 689.597 79.6899 689.157 78.8979C688.717 78.0766 687.969 77.4019 686.913 76.8739C685.857 76.3166 684.405 75.8912 682.557 75.5979L674.065 74.2779C669.137 73.4859 665.573 71.9899 663.373 69.7899C661.202 67.5899 660.117 64.6419 660.117 60.9459C660.117 56.4579 661.965 52.9232 665.661 50.3419C669.386 47.7312 675.062 46.4259 682.689 46.4259C685.094 46.4259 687.485 46.5872 689.861 46.9099C692.266 47.2032 694.481 47.6432 696.505 48.2299V55.2699C692.046 54.0379 687.456 53.4219 682.733 53.4219C677.893 53.4219 674.476 54.0526 672.481 55.3139C670.486 56.5752 669.489 58.3206 669.489 60.5499C669.489 62.2219 670.002 63.5859 671.029 64.6419C672.056 65.6686 673.889 66.4166 676.529 66.8859L685.021 68.2059C689.92 68.9686 693.513 70.3766 695.801 72.4299C698.089 74.4832 699.233 77.4606 699.233 81.3619C699.233 84.3832 698.412 86.9792 696.769 89.1499C695.156 91.3206 692.706 92.9926 689.421 94.1659C686.165 95.3392 682.146 95.9259 677.365 95.9259ZM760.579 74.0139H725.863C726.039 77.4752 726.787 80.2766 728.107 82.4179C729.427 84.5299 731.407 86.0846 734.047 87.0819C736.687 88.0792 740.075 88.5779 744.211 88.5779C748.317 88.5779 752.864 87.9472 757.851 86.6859V93.9459C752.659 95.2659 747.657 95.9259 742.847 95.9259C733.929 95.9259 727.241 93.9166 722.783 89.8979C718.353 85.8499 716.139 79.6166 716.139 71.1979C716.139 65.9179 717.033 61.4299 718.823 57.7339C720.612 54.0379 723.193 51.2366 726.567 49.3299C729.969 47.3939 734.061 46.4259 738.843 46.4259C745.883 46.4259 751.265 48.5819 754.991 52.8939C758.716 57.1766 760.579 63.3659 760.579 71.4619V74.0139ZM738.711 52.8939C734.604 52.8939 731.465 54.1406 729.295 56.6339C727.124 59.0979 725.965 62.9259 725.819 68.1179H751.383C751.265 62.9259 750.151 59.0979 748.039 56.6339C745.927 54.1406 742.817 52.8939 738.711 52.8939ZM796.986 46.4259C802.032 46.4259 806.138 47.0272 809.306 48.2299C812.474 49.4032 814.85 51.3686 816.434 54.1259C818.018 56.8832 818.81 60.6379 818.81 65.3899V95.0459H810.626L809.922 89.8979H809.394C807.605 91.7752 805.346 93.2419 802.618 94.2979C799.89 95.3246 796.986 95.8379 793.906 95.8379C790.386 95.8379 787.38 95.2952 784.886 94.2099C782.393 93.0952 780.501 91.5406 779.21 89.5459C777.92 87.5512 777.274 85.2046 777.274 82.5059C777.274 78.2526 778.858 74.9672 782.026 72.6499C785.224 70.3032 790.298 68.8219 797.25 68.2059L809.218 67.0179V64.7299C809.218 61.9139 808.734 59.7139 807.766 58.1299C806.798 56.5459 805.332 55.4312 803.366 54.7859C801.43 54.1406 798.849 53.8179 795.622 53.8179C793.393 53.8179 790.973 54.0086 788.362 54.3899C785.781 54.7712 783.302 55.3432 780.926 56.1059V48.8019C783.273 48.0392 785.869 47.4526 788.714 47.0419C791.589 46.6312 794.346 46.4259 796.986 46.4259ZM796.502 89.0619C798.849 89.0619 801.122 88.6512 803.322 87.8299C805.522 86.9792 807.488 85.7179 809.218 84.0459V72.8259L797.998 73.9259C794.097 74.3659 791.31 75.2166 789.638 76.4779C787.966 77.7099 787.13 79.4699 787.13 81.7579C787.13 84.0752 787.908 85.8792 789.462 87.1699C791.017 88.4312 793.364 89.0619 796.502 89.0619ZM841.524 47.1739H849.576L850.324 53.2899H850.896C852.627 51.2072 854.856 49.5792 857.584 48.4059C860.341 47.2326 863.216 46.6459 866.208 46.6459C867.909 46.6459 869.508 46.7926 871.004 47.0859V55.8419C869.567 55.5779 867.807 55.4459 865.724 55.4459C863.143 55.4459 860.517 55.9446 857.848 56.9419C855.179 57.9392 852.993 59.4206 851.292 61.3859V95.0459H841.524V47.1739ZM909.164 95.9259C900.921 95.9259 894.629 93.8432 890.288 89.6779C885.976 85.5126 883.82 79.3526 883.82 71.1979C883.82 63.0139 886.093 56.8392 890.64 52.6739C895.216 48.5086 901.889 46.4259 910.66 46.4259C915.03 46.4259 919.049 46.9246 922.716 47.9219V55.7099C920.692 55.2406 918.8 54.8886 917.04 54.6539C915.28 54.4192 913.432 54.3019 911.496 54.3019C905.482 54.3019 901.024 55.6512 898.12 58.3499C895.245 61.0486 893.808 65.2872 893.808 71.0659C893.808 76.8739 895.172 81.1566 897.9 83.9139C900.657 86.6712 904.734 88.0499 910.132 88.0499C912.009 88.0499 913.93 87.8886 915.896 87.5659C917.861 87.2139 920.134 86.6712 922.716 85.9379V93.7259C918.55 95.1926 914.033 95.9259 909.164 95.9259ZM941.796 23.9419H951.564V52.2779H952.048C954.248 50.3712 956.756 48.9192 959.572 47.9219C962.417 46.9246 965.395 46.4259 968.504 46.4259C974.019 46.4259 978.375 47.9952 981.572 51.1339C984.769 54.2432 986.368 59.0686 986.368 65.6099V95.0459H976.6V66.0939C976.6 62.0459 975.661 59.1566 973.784 57.4259C971.936 55.6952 969.237 54.8299 965.688 54.8299C963.048 54.8299 960.481 55.3286 957.988 56.3259C955.524 57.2939 953.383 58.7312 951.564 60.6379V95.0459H941.796V23.9419Z" fill="#14C290"/>
+<rect x="0.205322" y="14.873" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="43.1211" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="14.679" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="14.679" y="44.0371" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="44.0371" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="44.0371" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="57.2478" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="86.6055" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="86.6055" y="44.0371" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="101.284" y="29.1787" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="58.7158" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="58.7158" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="43.1211" y="87.1592" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="57.2478" y="87.1592" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="73.0205" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="73.0205" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="29.3579" y="87.3262" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="71.9265" y="87.3262" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="43.1211" y="101.631" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="57.2478" y="101.631" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="101.284" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+<rect x="15.0187" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="29.6979" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="44.3771" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="44.3771" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="44.3771" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="44.3771" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="59.0558" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="73.3605" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="87.6662" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="87.6662" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="87.6662" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="87.6662" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="0.34" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="29.6979" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="72.2668" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="101.624" y="101.971" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="43.4611" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="57.5876" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="15.0187" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="29.6979" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="72.2668" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.9455" y="0.34" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="72.445" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="86.7506" y="15.213" width="10.0489" height="10.0489" rx="5.02447" stroke="#363636" stroke-width="0.68"/>
+<rect x="100.716" y="14.873" width="10.7289" height="10.7289" rx="5.36447" fill="#14C290"/>
+</svg></a>
+<h1><span class="ticker">NVDA</span> <span class="rating up">Overweight</span></h1>
+<p class="date">Analysis of 2026-10-23</p>
+<dl class="run"><div class="detail"><dt>Generated</dt><dd>2026-11-14 14:24</dd></div><div class="detail"><dt>Deep model</dt><dd><span class="field">google</span> <span class="field">gemini-3.5-flash-lite</span></dd></div><div class="detail"><dt>Quick model</dt><dd><span class="field">google</span> <span class="field">gemini-3.5-flash-lite</span></dd></div><div class="detail"><dt>Analysts</dt><dd><span class="field">market</span></dd></div><div class="detail"><dt>Debate rounds</dt><dd><span class="group"><span class="name">research</span><span class="field">1</span></span> <span class="group"><span class="name">risk</span><span class="field">1</span></span></dd></div><div class="detail"><dt>Data vendors</dt><dd><span class="group"><span class="name">Prices</span><span class="field">yfinance</span></span> <span class="group"><span class="name">Indicators</span><span class="field">yfinance</span></span> <span class="group"><span class="name">Fundamentals</span><span class="field">sec_edgar</span> <span class="then">→</span> <span class="field">yfinance</span></span> <span class="group"><span class="name">News</span><span class="field">yfinance</span></span> <span class="group"><span class="name">Macro</span><span class="field">fred</span></span> <span class="group"><span class="name">Prediction markets</span><span class="field">polymarket</span></span></dd></div><div class="detail"><dt>Version</dt><dd>TradingAgents 0.7.0</dd></div></dl>
+</header>
+<nav class="contents" aria-label="Sections"><ul><li><a href="#s1"><span class="num">I</span> <span class="label">Analyst Team Reports</span></a><ul><li><a href="#s1-1"><span class="bar"></span> <span class="label">Market Analyst</span></a></li></ul></li><li><a href="#s2"><span class="num">II</span> <span class="label">Research Team Decision</span></a><ul><li><a href="#s2-1"><span class="bar"></span> <span class="label">Bull Researcher</span></a></li><li><a href="#s2-2"><span class="bar"></span> <span class="label">Bear Researcher</span></a></li><li><a href="#s2-3"><span class="bar"></span> <span class="label">Research Manager</span></a></li></ul></li><li><a href="#s3"><span class="num">III</span> <span class="label">Trading Team Plan</span></a><ul><li><a href="#s3-1"><span class="bar"></span> <span class="label">Trader</span></a></li></ul></li><li><a href="#s4"><span class="num">IV</span> <span class="label">Risk Management Team Decision</span></a><ul><li><a href="#s4-1"><span class="bar"></span> <span class="label">Aggressive Analyst</span></a></li><li><a href="#s4-2"><span class="bar"></span> <span class="label">Conservative Analyst</span></a></li><li><a href="#s4-3"><span class="bar"></span> <span class="label">Neutral Analyst</span></a></li></ul></li><li><a href="#s5"><span class="num">V</span> <span class="label">Portfolio Manager Decision</span></a><ul><li><a href="#s5-1"><span class="bar"></span> <span class="label">Portfolio Manager</span></a></li></ul></li></ul></nav>
+<main>
+<section id="s1"><h2>I. Analyst Team Reports</h2><h3 id="s1-1">Market Analyst</h3>
+<h4>Comprehensive Technical Market Analysis Report: NVDA</h4>
+<p><strong>Instrument:</strong> <code>NVDA</code><br />
+<strong>Analysis Date:</strong> October 23, 2026<br />
+<strong>Resolved Identity:</strong> NVIDIA Corporation</p>
+<hr />
+<h5>Executive Summary &amp; Indicator Selection Rationale</h5>
+<p>To evaluate the current market condition of <strong>NVDA</strong> as of October 23, 2026, we have curated a non-redundant set of up to 8 technical indicators spanning diverse analytical categories (Moving Averages, Momentum, MACD, Volatility, and Volume-Based indicators). These indicators provide complementary perspectives on trend strength, momentum deceleration, volatility expansion, and volume-weighted price action:</p>
+<ol>
+<li><strong><code>close_10_ema</code> (10 EMA):</strong> A responsive short-term exponential moving average capturing immediate momentum shifts and pullbacks.</li>
+<li><strong><code>close_50_sma</code> (50 SMA):</strong> A medium-term trend barometer used to assess intermediate trend direction and dynamic support/resistance.</li>
+<li><strong><code>close_200_sma</code> (200 SMA):</strong> The primary long-term benchmark confirming structural market orientation.</li>
+<li><strong><code>rsi</code> (RSI - 14):</strong> Measures internal price momentum to identify overbought/oversold boundaries and potential exhaustion zones.</li>
+<li><strong><code>macd</code> / <code>macds</code> / <code>macdh</code> (MACD Family):</strong> Evaluates trend acceleration/deceleration via differences between fast and slow EMAs, highlighting momentum crossovers and divergence.</li>
+<li><strong><code>boll</code> / <code>boll_ub</code> / <code>boll_lb</code> (Bollinger Bands):</strong> Maps volatility boundaries around a 20 SMA to highlight breakout zones and near-term extremes.</li>
+<li><strong><code>atr</code> (Average True Range):</strong> Quantifies absolute price volatility to establish robust, volatility-adjusted stop-loss levels and risk parameters.</li>
+<li><strong><code>vwma</code> (Volume Weighted Moving Average):</strong> Integrates volume weighting with price action to confirm institutional participation trends.</li>
+</ol>
+<hr />
+<h5>Detailed Trend Analysis &amp; Market Structure</h5>
+<h6>1. Price Action &amp; Trend Benchmarks</h6>
+<p>As of the trading close on <strong>October 23, 2026</strong>, <strong>NVDA</strong> closed at <strong>$210.96</strong>, down from its local October peaks near <strong>$239.24</strong> (achieved on October 6, 2026).</p>
+<ul>
+<li><strong>Short-Term Trend (<code>close_10_ema</code>):</strong> Standing at <strong>$218.44</strong>, the 10 EMA is currently above the spot price, confirming downward near-term pressure over the last two weeks.</li>
+<li><strong>Medium-Term Trend (<code>close_50_sma</code>):</strong> At <strong>$222.39</strong>, price has slipped below the 50 SMA, signaling a short-term correction within the intermediate structure.</li>
+<li><strong>Long-Term Trend (<code>close_200_sma</code>):</strong> The 200 SMA rests at <strong>$203.36</strong>. Despite the recent retracement from October highs, <code>NVDA</code> remains comfortably above its vital long-term benchmark, preserving the broader macro uptrend.</li>
+</ul>
+<h6>2. Momentum &amp; Oscillator Dynamics</h6>
+<ul>
+<li><strong>RSI (<code>rsi</code>):</strong> The 14-period RSI reads <strong>38.11</strong>, approaching oversold territory (&lt; 30) without yet triggering an extreme capitulation signal. This reflects steady selling pressure over the past seven trading sessions (where closes moved from $221.97 on October 21 down to $210.96 on October 23).</li>
+<li><strong>MACD (<code>macd</code>, <code>macds</code>, <code>macdh</code>):</strong> The MACD line sits at <strong>-2.63</strong>, with the signal line (<code>macds</code>) at <strong>-0.47</strong> and the histogram (<code>macdh</code>) showing deep negative momentum at <strong>-2.16</strong>. This confirms that downside momentum has accelerated during October's pullback from the $239–$240 resistance cluster.</li>
+</ul>
+<h6>3. Volatility &amp; Bollinger Band Analysis</h6>
+<ul>
+<li><strong>Bollinger Bands (<code>boll</code>, <code>boll_ub</code>, <code>boll_lb</code>):</strong>
+<ul>
+<li>Middle Band (<code>boll</code> / 20 SMA): <strong>$225.54</strong></li>
+<li>Upper Band (<code>boll_ub</code>): <strong>$243.02</strong></li>
+<li>Lower Band (<code>boll_lb</code>): <strong>$208.06</strong></li>
+</ul>
+</li>
+<li><strong>Interpretation:</strong> <code>NVDA</code> traded down toward the lower boundary ($208.06) during the October 23 session (hitting an intraday low of <strong>$210.18</strong> and closing at <strong>$210.96</strong>). Traders should monitor whether the lower band acts as dynamic support or if increased selling triggers band expansion.</li>
+<li><strong>ATR (<code>atr</code>):</strong> Daily true range volatility stands at <strong>$6.06</strong>, indicating sizable daily swings that necessitate wider risk buffers and disciplined position sizing.</li>
+</ul>
+<h6>4. Volume Integration (<code>vwma</code>)</h6>
+<ul>
+<li>The Volume Weighted Moving Average (<code>vwma</code>) is currently at <strong>$223.06</strong>, remaining above the spot price of $210.96. This indicates that recent high-volume sessions leaned heavier toward distribution and selling pressure, reinforcing the short-term pullback.</li>
+</ul>
+<hr />
+<h5>Actionable Insights &amp; Strategic Recommendations</h5>
+<ul>
+<li><strong>Support &amp; Reversal Zones:</strong> Immediate support is pegged near the lower Bollinger Band (<strong>$208.06</strong>) and the rising 200 SMA (<strong>$203.36</strong>). A defense of this zone combined with an RSI reversion above 40 could offer a tactical swing-long entry.</li>
+<li><strong>Overhead Resistance:</strong> The immediate hurdles sit at the 10 EMA (<strong>$218.44</strong>), the 50 SMA (<strong>$222.39</strong>), and the Bollinger Middle Band (<strong>$225.54</strong>). Bulls need a daily close above $225.54 to invalidate the current corrective phase.</li>
+<li><strong>Risk Management:</strong> Given an ATR of <strong>$6.06</strong>, short-term traders initiating positions should size stops dynamically (e.g., 1.5x to 2x ATR away from entry) to withstand normal intraday noise while protecting capital against a deeper test of the 200 SMA.</li>
+</ul>
+<hr />
+<h5>Key Metrics Summary Table</h5>
+<div class="table"><table>
+<thead>
+<tr>
+<th>Indicator Category</th>
+<th>Indicator Name</th>
+<th>Value (as of 2026-10-23)</th>
+<th>Analytical Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Price Action</strong></td>
+<td>Closing Price</td>
+<td>$210.96</td>
+<td>Retreated from October highs ($239.24); testing lower range.</td>
+</tr>
+<tr>
+<td><strong>Moving Average</strong></td>
+<td><code>close_10_ema</code></td>
+<td>$218.44</td>
+<td>Descending short-term trend line; acting as near-term resistance.</td>
+</tr>
+<tr>
+<td><strong>Moving Average</strong></td>
+<td><code>close_50_sma</code></td>
+<td>$222.39</td>
+<td>Intermediate trend pivot; price trades just beneath.</td>
+</tr>
+<tr>
+<td><strong>Moving Average</strong></td>
+<td><code>close_200_sma</code></td>
+<td>$203.36</td>
+<td>Long-term macro support floor preserving the structural uptrend.</td>
+</tr>
+<tr>
+<td><strong>Momentum</strong></td>
+<td><code>rsi</code></td>
+<td>38.11</td>
+<td>Approaching oversold levels; indicates waning buyer momentum.</td>
+</tr>
+<tr>
+<td><strong>MACD</strong></td>
+<td><code>macd</code> / <code>macds</code> / <code>macdh</code></td>
+<td>-2.63 / -0.47 / -2.16</td>
+<td>Bearish MACD crossover with widening negative histogram bars.</td>
+</tr>
+<tr>
+<td><strong>Volatility</strong></td>
+<td><code>boll_lb</code> / <code>boll_ub</code></td>
+<td>$208.06 / $243.02</td>
+<td>Price testing lower Bollinger band boundary ($208.06).</td>
+</tr>
+<tr>
+<td><strong>Volatility</strong></td>
+<td><code>atr</code></td>
+<td>$6.06</td>
+<td>Moderate-high daily volatility requiring wide stop parameters.</td>
+</tr>
+<tr>
+<td><strong>Volume</strong></td>
+<td><code>vwma</code></td>
+<td>$223.06</td>
+<td>Volume-weighted average sitting above spot price, confirming distribution.</td>
+</tr>
+</tbody>
+</table></div>
+</section><section id="s2"><h2>II. Research Team Decision</h2><h3 id="s2-1">Bull Researcher</h3>
+<p>Bull Analyst: Let’s address the elephant in the room right out of the gate. Yes, <code>NVDA</code> has experienced a healthy and entirely normal pullback from its October peaks near $239, closing recently around $210.96. The bear camp is undoubtedly going to point to this short-term correction, flash warning signs about the MACD crossover, and wave the 10 EMA and 50 SMA around like they spell doom for the company. But let's look past the surface noise of a minor consolidation phase and examine the actual structural reality of where <code>NVDA</code> stands today on October 23, 2026.</p>
+<p>Here is why betting against <code>NVDA</code> here is fighting a multi-trillion-dollar freight train:</p>
+<h6>1. The Long-Term Macro Trend is Untouched</h6>
+<p>Bears love to zoom in on a two-week chart to build a narrative of decay, but let's look at the institutional bedrock: the 200 SMA sits firmly at <strong>$203.36</strong>, and <code>NVDA</code> is holding strong above it. Even with the recent distribution reflected in the VWMA ($223.06) and the dip toward the lower Bollinger Band ($208.06), the structural, long-term bull market remains entirely intact. Pullbacks within a dominant secular trend are not signs of weakness; they are shakeouts designed to weed out weak hands before the next leg up.</p>
+<h6>2. Momentum Exhaustion Equals Opportunity, Not Capitulation</h6>
+<p>With the RSI dipping down to <strong>38.11</strong>, <code>NVDA</code> is rapidly approaching oversold territory without triggering a chaotic capitulation. This tells us something crucial: the selling pressure is methodical and orderly, not a panic. Historically, when a powerhouse like <code>NVDA</code> pulls back to test its lower volatility bands ($208.06) with an RSI hovering near the upper 30s, it represents a premier tactical entry zone for long-term investors looking to load up at a discount.</p>
+<h6>3. Scalability, Dominance, and Real-World Demand</h6>
+<p>If we step back from the technical indicators for a moment, the fundamental moat that <code>NVDA</code> commands is unmatched. No other player in the technology landscape offers the same level of vertical integration, hardware-software ecosystem lock-in, and sheer processing dominance. The market opportunities in accelerated computing, AI infrastructure, and next-generation data centers are still in their scaling phases. Short-term price fluctuations do not change the fact that <code>NVDA</code> remains the undisputed tollbooth of the modern digital economy.</p>
+<h6>To the Bear Analyst:</h6>
+<p>Don't mistake a tactical breather for a structural top. If you're focusing solely on the negative MACD histogram (-2.16) or the fact that spot price is sitting just beneath the 50 SMA ($222.39), you're missing the forest for the trees. Every time <code>NVDA</code> tests its foundational supports—like the confluence we are seeing right now near the $203–$208 zone—it winds up the spring for the next massive breakout.</p>
+<p>Bulls aren't worried about a $6.06 ATR; we embrace the volatility because it shakes out the skeptics right before <code>NVDA</code> reclaims the $225+ middle Bollinger Band and marches back toward its highs. How can you bet against a titan holding the line above its 200-day moving average? The floor is in—are you ready to ride the rebound?</p>
+<h3 id="s2-2">Bear Researcher</h3>
+<p>Bear Analyst: My friend, you are spinning a masterclass in optimism while <code>NVDA</code> is actively leaking institutional money. You call a slide from $239.24 down to $210.96 a &quot;healthy consolidation,&quot; but let's look at the actual plumbing of the market instead of hand-waving it away as a simple shakeout.</p>
+<p>Let's break down why your &quot;spring&quot; is looking a lot more like a broken trap:</p>
+<h6>1. Distribution is Not &quot;Orderly Accumulation&quot;</h6>
+<p>You brushed past the Volume Weighted Moving Average (<code>vwma</code>) sitting at <strong>$223.06</strong> while the spot price languishes at <strong>$210.96</strong>. That is a glaring tell. When the VWMA is significantly higher than the spot price, it means heavy volume is coming in on the <em>downside</em>. Big institutional players aren't quietly &quot;loading up at a discount&quot; here; they are actively distributing shares and lightening their exposure during rallies. That’s why <code>NVDA</code> couldn't hold the 10 EMA ($218.44) or the 50 SMA ($222.39). The buyers simply stepped away.</p>
+<h6>2. The MACD Doesn't Lie</h6>
+<p>You want to dismiss the negative MACD histogram (-2.16) and the bearish crossover (<code>macd</code> at -2.63 vs <code>macds</code> at -0.47) as surface noise. But momentum precedes price. Accelerated downside momentum doesn't magically reverse just because an RSI hits 38.11. Speaking of RSI—at <strong>38.11</strong>, we aren't at an extreme capitulation floor yet; we are in a sustained downward slope. If selling pressure persists, there is plenty of room for that RSI to plunge deep into the 20s before any real exhaustion kicks in.</p>
+<h6>3. Clinging to the 200 SMA is a Desperate Last Line of Defense</h6>
+<p>Sure, <code>NVDA</code> is still technically above its 200 SMA at <strong>$203.36</strong>. But celebrating the fact that a stock hasn't completely imploded into a structural bear market isn't a thesis—it’s a distress signal. When a market leader breaks below its 50 SMA and grinds all the way down toward the lower Bollinger Band (<strong>$208.06</strong>), it's testing the absolute limits of its intermediate support. If that $203–$208 floor gives way under the weight of a $6.06 ATR (which translates to violent, rapid daily swings), that &quot;untouched long-term trend&quot; vanishes in a heartbeat.</p>
+<p>You can wave your banner for the AI tollbooth all you want, but fundamentals don't prevent margin compression, valuation fatigue, or institutional rotation when momentum rolls over. <code>NVDA</code> is fighting gravity right now, and the tape shows sellers firmly in control. I wouldn't be rushing to catch this falling knife.</p>
+<h3 id="s2-3">Research Manager</h3>
+<p><strong>Recommendation</strong>: Overweight</p>
+<p><strong>Rationale</strong>: The bull and bear debate highlights a classic tension between long-term secular strength and short-term technical deterioration in NVDA. The bear camp rightly points out active institutional distribution with the VWMA at $223.06 outpacing the spot price of $210.96, a bearish MACD crossover, and a breakdown below both the 10 EMA and 50 SMA. However, the bull argument holds greater structural weight: NVDA remains safely above its critical 200 SMA at $203.36, and the RSI at 38.11 indicates approaching oversold territory without a chaotic capitulation. Because the long-term fundamental and macro trend is untouched while technicals approach a major historical support zone, the dip represents a constructive accumulation phase rather than a structural top. Weighing these factors leads to a constructive view to gradually build exposure.</p>
+<p><strong>Strategic Actions</strong>: Initiate scaled purchases to build exposure as NVDA tests the foundational $203–$208 support zone near the lower Bollinger band. Deploy half of a standard allocation initially, keeping dry powder to average down further if the lower 200 SMA support is tested directly, while placing tight risk management parameters around the $203 floor.</p>
+</section><section id="s3"><h2>III. Trading Team Plan</h2><h3 id="s3-1">Trader</h3>
+<p><strong>Action</strong>: Buy</p>
+<p><strong>Reasoning</strong>: NVDA is currently experiencing a short-term correction, testing the lower Bollinger Band support at $208.06 and approaching the major 200 SMA support at $203.36. Despite negative near-term momentum and distribution signals, the broader macro uptrend remains intact above the 200 SMA, and the RSI at 38.11 signals nearing oversold conditions. Initiating exposure here aligns with the constructive accumulation strategy outlined in the research plan.</p>
+<p><strong>Entry Price</strong>: 210.96</p>
+<p><strong>Stop Loss</strong>: 196.5</p>
+<p><strong>Position Sizing</strong>: 5% of portfolio</p>
+<p>FINAL TRANSACTION PROPOSAL: <strong>BUY</strong></p>
+</section><section id="s4"><h2>IV. Risk Management Team Decision</h2><h3 id="s4-1">Aggressive Analyst</h3>
+<p>Aggressive Analyst: Listen up, team. Since our conservative and neutral colleagues haven't even stepped into the ring yet, let me lay it out clearly: while they are likely hiding behind their spreadsheets worrying about a bit of short-term turbulence, the real money is made right here at the edge.</p>
+<p>Look at the facts on <strong>NVDA</strong>. Yes, we've pulled back from those October highs of $239.24 down to $210.96, and yes, the MACD and volume-weighted distribution show some near-term selling pressure. But what are the timid voices going to tell you? They'll fixate on the VWMA at $223.06 or point out that we're sitting under the 50 SMA at $222.39, calling it a broken trend. That is a loser's framing.</p>
+<p>What they completely fail to grasp is that this is a classic, textbook shakeout right at the lower Bollinger Band support of $208.06, with the RSI dipping down to a highly attractive 38.11—knocking hard on oversold territory. The macro structural uptrend is completely intact, anchored securely by the major 200 SMA at $203.36.</p>
+<p>If we wait for the conservative crowd's &quot;safety signals&quot;—like waiting for price to reclaim the 50 SMA or the middle Bollinger band at $225.54—we’ll have missed the entire asymmetric bounce. Buying right here at $210.96 with a well-calculated stop loss at $196.50 (giving us breathing room against the $6.06 ATR) gives us an incredible risk-reward setup. While the cautious analysts sit on their hands waiting for absolute certainty, we step in to accumulate near structural support, position for the inevitable violent reversion back toward the $240 resistance, and leave the hesitant behind. This is a Buy, plain and simple.</p>
+<h3 id="s4-2">Conservative Analyst</h3>
+<p>Conservative Analyst: While my aggressive colleague is eager to chase what he calls an &quot;asymmetric bounce,&quot; he is dangerously underestimating the heavy distribution currently taking place in <code>NVDA</code>. Dismissing the volume-weighted moving average sitting above us at $223.06 and trading beneath both the 10 EMA at $218.44 and the 50 SMA at $222.39 is not being bold—it’s ignoring glaring warning signs.</p>
+<p>The aggressive stance leans entirely on the hope that the lower Bollinger Band at $208.06 and the RSI at 38.11 will act as an immediate floor. But let's look at the actual momentum data: the MACD line is deep in negative territory at -2.63 with a widening histogram at -2.16. That doesn't look like a simple, harmless shakeout; it indicates accelerating downside momentum. With daily volatility running high—an ATR of $6.06—forcing a 5% portfolio allocation into a falling knife simply because we are near a support zone exposes the firm to unnecessary capital erosion. If that long-term 200 SMA support at $203.36 fails to hold under sustained selling pressure, the proposed stop loss at $196.50—sitting roughly 2.3 ATRs away—will inflict a painful, compounding hit to our books.</p>
+<p>True risk management isn't about sitting on our hands; it is about capital preservation and refusing to catch falling knives in a confirmed short-term corrective phase. Before committing any capital to <code>NVDA</code>, a prudent approach demands that we wait for confirmation of institutional accumulation, a recovery above the 50 SMA, and a stabilization of negative MACD momentum. Securing long-term capital stability always outweighs the temptation of chasing a speculative bottom.</p>
+<h3 id="s4-3">Neutral Analyst</h3>
+<p>Neutral Analyst: Let’s step back and look at both sides of this argument with a clear head, because both our aggressive and conservative colleagues are letting their biases cloud the data on <code>NVDA</code>.</p>
+<p>To our aggressive analyst: you are being far too dismissive of the distribution signals. Brushing off the VWMA at $223.06 and a deep negative MACD histogram at -2.16 as a &quot;simple shakeout&quot; ignores very real selling pressure. Buying blindly into a falling asset just because it touched the lower Bollinger Band at $208.06 is how traders catch falling knives. You're assuming the bounce is guaranteed, but momentum is clearly working against you in the short term.</p>
+<p>On the other hand, to our conservative analyst: your paralysis by analysis is just as dangerous. Waiting for a complete recovery above the 50 SMA at $222.39 means you are willing to give up the best part of the risk-reward ratio, turning a tactical accumulation into a momentum chase near overhead resistance. Dismissing the major 200 SMA support at $203.36 and the fact that the broader macro uptrend remains intact means you're hiding from opportunity out of sheer fear.</p>
+<p>The balanced, rational path for <code>NVDA</code> is right in the middle. We don't need to force a heavy 5% allocation all at once at $210.96, nor do we need to sit on our hands and wait for a green light at the top of the range. A moderate strategy suggests scaling in with a smaller initial tranche—say, 2% to 2.5% of the portfolio—right here near the lower Bollinger Band and structural support, while leaving dry powder to add to the position only if the 200 SMA holds and momentum begins to stabilize. We respect the high ATR of $6.06 by keeping our stop loss at $196.50, but we don't let fear keep us out of a high-quality asset testing long-term support. That is how you balance upside participation with disciplined risk management.</p>
+</section><section id="s5"><h2>V. Portfolio Manager Decision</h2><h3 id="s5-1">Portfolio Manager</h3>
+<p><strong>Rating</strong>: Overweight</p>
+<p><strong>Executive Summary</strong>: Initiate scaled purchases to build exposure in NVDA as it tests the foundational support zone near the lower Bollinger band. Deploy half of a standard allocation initially around the current spot price of $210.96, keeping dry powder to average down if the 200 SMA is tested, with a strict stop loss at $196.50 over a 3-6 month time horizon.</p>
+<p><strong>Investment Thesis</strong>: The investment thesis weighs the short-term technical deterioration highlighted by the conservative and neutral perspectives—such as active distribution with the VWMA at $223.06, a negative MACD at -2.63, and trading below the 50 SMA at $222.39—against the stronger structural support emphasized by the aggressive analyst and research plan. Specifically, NVDA remains safely above its critical 200 SMA at $203.36, and the RSI at 38.11 signals an approaching oversold condition without a chaotic capitulation. Because the long-term fundamental and macro trend is intact while price approaches major historical support, a graded accumulation approach balances upside participation with disciplined risk management. An invalidation of this thesis would occur if sustained selling pressure breaks the $203.36 200 SMA floor, triggering the $196.50 stop loss.</p>
+<p><strong>Price Target</strong>: 240.0</p>
+<p><strong>Time Horizon</strong>: 3-6 months</p>
+</section>
+</main>
+<footer class="credit"><a href="https://github.com/TauricResearch/TradingAgents" rel="noopener">TradingAgents</a> powered by <a class="brand" href="https://github.com/TauricResearch" rel="noopener">Tauric Research</a></footer>
+</div>
+<a class="to-top" href="#top">Top</a>
+</body>
+</html>

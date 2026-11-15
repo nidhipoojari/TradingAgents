@@ -1,0 +1,59 @@
+╭────────────────────────── Welcome to TradingAgents ──────────────────────────╮
+│                                                                              │
+│                                                                              │
+│    ______               ___             ___                    __            │
+│   /_  __/________ _____/ (_)___  ____ _/   | ____ ____  ____  / /______      │
+│    / / / ___/ __ `/ __  / / __ \/ __ `/ /| |/ __ `/ _ \/ __ \/ __/ ___/      │
+│   / / / /  / /_/ / /_/ / / / / / /_/ / ___ / /_/ /  __/ / / / /_(__  )       │
+│  /_/ /_/   \__,_/\__,_/_/_/ /_/\__, /_/  |_\__, /\___/_/ /_/\__/____/        │
+│                               /____/      /____/                             │
+│                                                                              │
+│  TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI           │
+│                                                                              │
+│  Workflow Steps:                                                             │
+│  I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management →   │
+│  V. Portfolio Management                                                     │
+│                                                                              │
+│  Built by [Tauric Research](https://github.com/TauricResearch)               │
+│                                                                              │
+╰──────────────── Multi-Agents LLM Financial Trading Framework ────────────────╯
+
+
+✓ Ticker from --ticker: NVDA
+✓ Analysis date from --date: 2026-10-23
+✓ Output language from environment: English
+Selected analysts: market
+✓ Research depth from environment: 1 debate / 1 risk rounds
+✓ LLM provider from environment: google
+✓ Backend URL: None
+✓ Thinking agents from environment: quick=gemini-does-not-exist, 
+deep=gemini-does-not-exist
+/home/sbhat/Projects/TradingAgents-cli-startup/tradingagents/llm_clients/google_client.py:46: RuntimeWarning: Model 'gemini-does-not-exist' is not in the known model list for provider 'google'. Continuing anyway.
+  self.warn_if_unknown_model()
+E1 fallback: 2026-11-14 14:39:51 | quick tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+E1 fallback: 2026-11-14 14:40:05 | quick tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+E1 fallback: 2026-11-14 14:40:10 | quick tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+E1 fallback: 2026-11-14 14:40:19 | quick tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+E1 fallback: 2026-11-14 14:40:23 | deep tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+E1 fallback: 2026-11-14 14:40:26 | quick tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+E1 fallback: 2026-11-14 14:40:28 | quick tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+E1 fallback: 2026-11-14 14:40:32 | quick tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+E1 fallback: 2026-11-14 14:40:35 | quick tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+E1 fallback: 2026-11-14 14:40:40 | deep tier | gemini-does-not-exist failed (GoogleModelNotFoundError: Error calling model 'gemini-does-not-exist' (NOT_FOUND): 404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemin) -> switching to gemini-3.1-flash-lite
+
+Analysis Complete!
+
+LLM calls: 20  Tool calls: 3  Tokens: 22,909 in / 4,767 out (27,676 total)
+Saved to 
+/home/sbhat/Projects/TradingAgents-cli-startup/eval/forced_failure/01_NVDA/resul
+ts/NVDA/2026-10-23/token_usage.json
+
+Analyst wall time: Market 19.85s
+
+✓ Report saved to: 
+/home/sbhat/Projects/TradingAgents-cli-startup/eval/forced_failure/01_NVDA/resul
+ts/reports/NVDA_20261114_144044
+  Complete report: complete_report.md
+  HTML report: complete_report.html
+
+E3 metrics saved: /home/sbhat/Projects/TradingAgents-cli-startup/eval/forced_failure/01_NVDA/e3/NVDA_2026-10-23_55a01886_e3.json

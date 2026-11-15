@@ -1,0 +1,223 @@
+{
+  "schema": "tradingagents-e3-summary-v1",
+  "created_at_utc": "2026-11-14T17:31:43.412668+00:00",
+  "ticker": "AAPL",
+  "analysis_date": "2026-10-23",
+  "status": "success",
+  "decision": "**Rating**: Hold\n\n**Executive Summary**: Maintain standard allocations in AAPL without adding new capital at current elevated resistance levels near $350. Monitor the upper Bollinger Band boundary ($349.56) and psychological resistance, preparing to accumulate on pullbacks toward the 50-day simple moving average ($329.22). Maintain existing positions tight using ATR-based risk parameters with a stop-loss at $334.65.\n\n**Investment Thesis**: The decision to Hold is anchored in the balance of technical evidence highlighted during the risk analysts' debate. On one hand, AAPL is supported by a robust medium-to-long-term macro uptrend, trading safely above its 50-day SMA ($329.22) and 200-day SMA ($293.88), with a healthy RSI of 63.93 indicating that momentum is active and not yet extremely overbought. Conversely, the asset is pressing directly against its upper Bollinger Band ($349.56) and major psychological resistance at $350, creating unfavorable short-term risk-reward asymmetry for new capital deployments. Entering aggressively right at $347.47 forces a stop-loss at $334.65 that exposes capital to a significant drawdown just to chase late-stage upside. While the aggressive analyst's push for trend continuation and the conservative analyst's call for capital preservation both hold merit, the evidence balances out: the overarching macro trend is strong and unbroken, but chasing the absolute peak is unwarranted. What would change this stance is either a confirmed, high-volume breakout cleanly above $350 or a mean-reversion pullback toward dynamic support at the 50-day SMA that offers a more favorable entry asymmetry.\n\n**Price Target**: not provided\n\n**Time Horizon**: 3-6 months",
+  "run_error": null,
+  "wall_time_seconds": 27.91,
+  "observed_llm_calls": 12,
+  "observed_llm_errors": 0,
+  "per_call": [
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 907.17,
+      "input_tokens": 1871,
+      "output_tokens": 46,
+      "had_error": false
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 787.6,
+      "input_tokens": 3288,
+      "output_tokens": 54,
+      "had_error": false
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 689.36,
+      "input_tokens": 4062,
+      "output_tokens": 39,
+      "had_error": false
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 4108.74,
+      "input_tokens": 4624,
+      "output_tokens": 1181,
+      "had_error": false
+    },
+    {
+      "agent": "Bull Researcher",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 3338.45,
+      "input_tokens": 1615,
+      "output_tokens": 692,
+      "had_error": false
+    },
+    {
+      "agent": "Bear Researcher",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 3631.92,
+      "input_tokens": 2314,
+      "output_tokens": 848,
+      "had_error": false
+    },
+    {
+      "agent": "Research Manager",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 1996.61,
+      "input_tokens": 1973,
+      "output_tokens": 321,
+      "had_error": false
+    },
+    {
+      "agent": "Trader",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 1345.21,
+      "input_tokens": 1937,
+      "output_tokens": 167,
+      "had_error": false
+    },
+    {
+      "agent": "Aggressive Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 2794.43,
+      "input_tokens": 1912,
+      "output_tokens": 441,
+      "had_error": false
+    },
+    {
+      "agent": "Conservative Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 2141.19,
+      "input_tokens": 2765,
+      "output_tokens": 360,
+      "had_error": false
+    },
+    {
+      "agent": "Neutral Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 2209.36,
+      "input_tokens": 3449,
+      "output_tokens": 468,
+      "had_error": false
+    },
+    {
+      "agent": "Portfolio Manager",
+      "model": "gemini-3.5-flash-lite",
+      "latency_ms": 2351.01,
+      "input_tokens": 2214,
+      "output_tokens": 411,
+      "had_error": false
+    }
+  ],
+  "per_agent": {
+    "Aggressive Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2794.43,
+      "input_tokens_reported": 1912,
+      "output_tokens_reported": 441,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Bear Researcher": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 3631.92,
+      "input_tokens_reported": 2314,
+      "output_tokens_reported": 848,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Bull Researcher": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 3338.45,
+      "input_tokens_reported": 1615,
+      "output_tokens_reported": 692,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Conservative Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2141.19,
+      "input_tokens_reported": 2765,
+      "output_tokens_reported": 360,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Market Analyst": {
+      "llm_calls": 4,
+      "errors": 0,
+      "observed_llm_latency_ms": 6492.87,
+      "input_tokens_reported": 13845,
+      "output_tokens_reported": 1320,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Neutral Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2209.36,
+      "input_tokens_reported": 3449,
+      "output_tokens_reported": 468,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Portfolio Manager": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2351.01,
+      "input_tokens_reported": 2214,
+      "output_tokens_reported": 411,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Research Manager": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1996.61,
+      "input_tokens_reported": 1973,
+      "output_tokens_reported": 321,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Trader": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1345.21,
+      "input_tokens_reported": 1937,
+      "output_tokens_reported": 167,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    }
+  },
+  "estimated_cost_usd": null,
+  "known_usage_cost_usd": null,
+  "cost_complete": false,
+  "priced_llm_calls": 0,
+  "unpriced_llm_calls": 12,
+  "cost_note": "Not calculated: supply pricing for every model and ensure every LLM callback includes token usage.",
+  "limitations": [
+    "Unattributed events may appear when the agent/node is absent from callback metadata.",
+    "Tokens are counted only when reported by the underlying provider.",
+    "Callback LLM latency is not the same as end-to-end run latency.",
+    "Langfuse tracing records observations; it does not itself change E1 model routing or trigger fallback."
+  ]
+}

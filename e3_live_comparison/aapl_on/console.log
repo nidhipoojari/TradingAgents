@@ -1,0 +1,47 @@
+╭────────────────────────── Welcome to TradingAgents ──────────────────────────╮
+│                                                                              │
+│                                                                              │
+│    ______               ___             ___                    __            │
+│   /_  __/________ _____/ (_)___  ____ _/   | ____ ____  ____  / /______      │
+│    / / / ___/ __ `/ __  / / __ \/ __ `/ /| |/ __ `/ _ \/ __ \/ __/ ___/      │
+│   / / / /  / /_/ / /_/ / / / / / /_/ / ___ / /_/ /  __/ / / / /_(__  )       │
+│  /_/ /_/   \__,_/\__,_/_/_/ /_/\__, /_/  |_\__, /\___/_/ /_/\__/____/        │
+│                               /____/      /____/                             │
+│                                                                              │
+│  TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI           │
+│                                                                              │
+│  Workflow Steps:                                                             │
+│  I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management →   │
+│  V. Portfolio Management                                                     │
+│                                                                              │
+│  Built by [Tauric Research](https://github.com/TauricResearch)               │
+│                                                                              │
+╰──────────────── Multi-Agents LLM Financial Trading Framework ────────────────╯
+
+
+✓ Ticker from --ticker: AAPL
+✓ Analysis date from --date: 2026-10-23
+✓ Output language from environment: English
+Selected analysts: market
+✓ Research depth from environment: 1 debate / 1 risk rounds
+✓ LLM provider from environment: google
+✓ Backend URL: None
+✓ Thinking agents from environment: quick=gemini-3.5-flash-lite, 
+deep=gemini-3.5-flash-lite
+
+Analysis Complete!
+
+LLM calls: 12  Tool calls: 3  Tokens: 32,024 in / 5,028 out (37,052 total)
+Saved to 
+/home/sbhat/Projects/TradingAgents-cli-startup/e3_live_comparison/aapl_on/result
+s/AAPL/2026-10-23/token_usage.json
+
+Analyst wall time: Market 7.58s
+
+✓ Report saved to: 
+/home/sbhat/Projects/TradingAgents-cli-startup/e3_live_comparison/aapl_on/result
+s/reports/AAPL_20261114_123143
+  Complete report: complete_report.md
+  HTML report: complete_report.html
+
+E3 metrics saved: /home/sbhat/Projects/TradingAgents-cli-startup/e3_live_comparison/aapl_on/e3/AAPL_2026-10-23_f63b29e1_e3.json
