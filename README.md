@@ -29,6 +29,76 @@
 
 # TradingAgents: Multi-Agents LLM Financial Trading Framework
 
+## TradeDesk AI: SENG 691 term project fork
+
+This repo is a SENG 691 (AI Agent Computing) term project built on
+[TauricResearch/TradingAgents](https://github.com/TauricResearch/TradingAgents).
+Team: Joe Defusco, Shubhan Bhat, Nidhi Poojari.
+
+| Phase | What it adds | Code |
+| --- | --- | --- |
+| Phase 1 | Original project built, deployed and run | commit `92d7dd0` |
+| Phase 2 | E1 model routing + backup model, E2 market-data cache, E3 tracing + cost monitoring | commit `aa763f7` (PRs #1–#12) |
+| Phase 3 (planned) | F1 Streamlit dashboard + human-approved Alpaca paper trading, F2 MCP server | in progress |
+
+Full list of Phase 2 changes, file by file: [PHASE2_CHANGES.md](PHASE2_CHANGES.md).
+
+### Phase 2 enhancements
+
+- **E1, model routing + backup model** (`tradingagents/e1_routing.py`): one table gives each of the 12 agents a quick or deep model. If a model call fails (rate limit, server error, unknown model), the same request goes to a backup model, so the run finishes instead of crashing. Each switch is logged to `<results_dir>/e1_fallback_log.txt`.
+- **E2, market-data cache** (`tradingagents/e2_cache.py`): past-dated answers from every data tool are saved in a local SQLite file, so repeat requests skip the download. Today's data and error answers are never cached.
+- **E3, tracing + cost monitoring** (`tradingagents/e3_tracing.py`, `tradingagents/e3_cli_hook.py`): every LLM call is traced in Langfuse with its agent, model, time, tokens and errors, and a JSON summary with an estimated cost (`e3_pricing.json`) is saved after each run.
+
+### Phase 2 setup
+
+```bash
+git clone https://github.com/nidhipoojari/TradingAgents.git
+cd TradingAgents
+python3 -m venv .venv
+source .venv/bin/activate            # Windows: .\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[e3]" langchain   # langfuse + langchain are only needed for E3
+cp .env.example .env                 # Windows: Copy-Item .env.example .env
+```
+
+New settings in `.env` (all optional; leaving them out keeps the original behavior):
+
+| Setting | Enhancement | Example |
+| --- | --- | --- |
+| `TRADINGAGENTS_QUICK_FALLBACK_LLM`, `TRADINGAGENTS_DEEP_FALLBACK_LLM` | E1 backup models | `gemini-3.1-flash-lite` |
+| `TRADINGAGENTS_E2_CACHE` | E2 cache on/off | `true` |
+| `E3_TRACE_ENABLED` | E3 tracing on/off | `1` |
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | E3 Langfuse keys | from your Langfuse project |
+| `E3_PRICING_JSON`, `E3_RESULTS_DIR` | E3 price file and summary folder | `e3_pricing.json`, `e3_results` |
+
+Run one analysis:
+
+```bash
+python -m cli.main --ticker NVDA --date 2026-10-23 --analysts market --no-checkpoint --save --no-show
+```
+
+Run the offline tests (no API key needed):
+
+```bash
+python -m pytest -q
+```
+
+On macOS/Linux, 3 tests in `tests/test_cache_writes.py` fail. They come from the original TradingAgents code, were not changed in Phase 2, and simulate Windows file locking, which doesn't work on these systems. All other tests pass.
+
+### Phase 2 results
+
+Phase 1 code vs Phase 2 code, run under the same conditions (NVDA, 2026-10-23, market analyst, 3 runs each):
+
+| Metric | Phase 1 | Phase 2 |
+| --- | --- | --- |
+| Run time, median | 46.4 s | 29.6 s |
+| Tokens per run, mean | 135,240 | 31,933 |
+| Estimated cost per run, mean | $0.0533 | $0.0210 |
+| Same rating in 3 runs | 2 of 3 | 3 of 3 |
+| Run with a broken main model (E1) | stops | finishes on the backup |
+| Data-load time, warm cache (E2) | 3.69 s | 0.003 s |
+
+Evidence files: `results/phase2/`, `eval/` (forced-failure test, Phase 1 vs Phase 2 runs, cloc and lizard reports) and the scripts in `scripts/`.
+
 ## News
 
 <!-- news:start -->
