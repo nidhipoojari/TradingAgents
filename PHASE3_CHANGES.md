@@ -480,6 +480,77 @@ fake paper broker, and the only Submit click used a wrong step-up password; head
 Ubuntu 24.04 fallback build (Ubuntu 26.04 is not supported by Playwright 1.52); no live Gemini, Langfuse or
 Alpaca. The test harness (bootstrap, browser and MCP scripts) is not part of the repository.
 
+## Per-run LLM limits for dashboard analyses (2026-11-23)
+
+The dashboard had no per-run ceiling: its only brake was the Cancel button. The smoke script's `BudgetGuard`
+(scripts/smoke) bounded only that script. `tradingagents/run_budget.py` now gives the shared service an
+opt-in limit, a maximum number of LLM calls and an estimated-cost ceiling, carried on the request
+(`AnalysisRequest.budget`, a `RunBudget`) so it is enforced inside the worker process that makes the calls.
+
+**Defaults.** Dashboard runs: 15 LLM calls and $0.04, set by `TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS` and
+`TRADINGAGENTS_DASHBOARD_MAX_COST_USD` (a number, or `0`/`off` to switch one off; anything else is refused, so a
+typo never removes a limit). These defaults suit a one-analyst, one-round run like the validation below; a
+four-analyst run makes about 15 calls on its own and needs a higher call limit. The CLI and the MCP server set
+no budget, so they behave as before; a request without a budget adds no callback and no output fields.
+
+**How it is enforced** (`BudgetGuard`, first in the run's callbacks, before the cancel guard, statistics and E3):
+
+- *Admission at call start, atomically.* Each model call is admitted or refused at its own start under one
+  lock, so parallel analysts cannot pass a limit together (the smoke guard's design). A refusal raises the
+  service's cancel signal (a BaseException, so E1 cannot send the refused call to the backup model) and sets the
+  run's cancel event, so no further agent step, model call or tool call starts. A refused call never starts, so
+  it appears in no count, E3 record or trace.
+- *What counts as a call.* Every call LangChain starts: E1 primary calls, E1 backup calls after a primary
+  failure, and failed calls. Retries inside a provider SDK are not visible (see limitations).
+- *Cost: reserved, then reconciled.* At admission a call reserves an estimate: its prompt at 3 characters per
+  token plus 2,000 output tokens, at its model's price. A call is refused if the cost already charged, plus the
+  reservations of calls still running, plus its own would pass the ceiling, so calls in flight are counted
+  before they return. When a call ends, its reported usage replaces the reservation. A successful call without
+  usage keeps its full reservation; a failed call without usage is charged its input estimate (a failed request
+  may still be billed for input).
+- *Unpriced is never free.* A model missing from `E3_PRICING_JSON` is charged at the highest price in the file.
+  A cost ceiling with no pricing at all is refused before the run starts (the dashboard shows why).
+
+Compared with the smoke guard, this one also counts calls still running, charges calls without usage and
+failed calls, prices unknown models conservatively, and reports its stop separately. The smoke script keeps its
+own guard unchanged, so its recorded runs stay reproducible.
+
+**Reported separately from a cancel or a failure.** A stop by the limit raises `AnalysisBudgetExceeded` (a
+subclass of `AnalysisCancelled`, so every existing stop path still releases the run and the worker). Its
+message names the limit ("was stopped by its per-run limit (call limit reached: 15 of 15 LLM calls used)").
+E3 records `status: "budget_exceeded"` with the limit's accounting in a new `run_budget` block, and the
+dashboard job gets status `budget_exceeded`. Through the worker, the child reports the trip at once, so the
+parent starts its grace timer. If a model call hangs, the worker is terminated after the grace period, exactly
+as for a cancel, and the stop is still reported as a budget stop. A completed run records the same accounting
+under `run_budget` in `token_usage.json` and its E3 summary.
+
+**Dashboard.** The sidebar shows the limits ("Per-run limits: 15 LLM calls, $0.04 estimated cost"), or the
+configuration error. A run in progress shows them. Run metrics shows the use ("Per-run limits: 9 of 15 LLM
+calls; $0.0201… of $0.04 budget estimate"), next to the E3 cost line. A run stopped by the limit says "Stopped
+by the per-run limit, not by you and not by a model error", with the accounting and the run's E3 cost.
+
+**Tests** (`tests/test_run_budget.py`, 24): the guard call by call (completion, call limit, cost limit with
+calls in flight, reconciliation, unpriced models, missing usage, E1 fallback, 20 concurrent starts against a
+limit of 5, a cancel by the person, no pricing, settings); the real graph through the service (completion,
+call limit, a cost limit computed to stop at exactly 4 calls, fallback, calls without usage, cancel by the
+person, four parallel analysts against a limit of 3, no budget = no change for the CLI and MCP); the worker
+process (a budget stop crossing the process boundary; a budget stop with a hung call terminating the worker);
+the dashboard (job status; the real page through AppTest showing the limits and a budget stop). Two existing
+page tests now switch the limits off, because they test other things without a pricing file (which a cost
+limit needs): `test_dashboard_page_runs_an_analysis_with_e1_e2_e3` (two analysts with a failing main model,
+over 15 calls) and `test_dashboard_paper_order_needs_a_signed_in_user` (sign-in and orders).
+
+**Limitations.** The ceiling bounds the budget *estimate*, not the provider's bill:
+
+- a call that writes more than 2,000 output tokens can take the estimate past the ceiling by the difference
+  (no `max_tokens` is set);
+- calls already running when a limit trips are not interrupted (no provider SDK here can abort a request);
+  they are charged when they return;
+- retries inside the provider SDK (the E1 backup uses the Gemini client's default of 6) happen within one
+  counted call and are not seen (a retried 429 is normally not billed);
+- the 3-characters-per-token input estimate is approximate, and prices are only as current as
+  `E3_PRICING_JSON`.
+
 ## Live smoke tests
 
 Completed on 2026-11-22: see `PHASE3_SMOKE_TESTS.md` (`scripts/smoke/`) for the commands, safeguards and full

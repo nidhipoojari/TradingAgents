@@ -22,11 +22,12 @@ broker); code running inside this process is trusted. See PHASE3_CHANGES.md,
 import json
 import os
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 
 from cli.prompts import detect_asset_type, parse_ticker
-from tradingagents import service
+from tradingagents import run_budget, service
 from tradingagents.dashboard import jobs, trade
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.execution import identity as auth, order_policy as op
@@ -124,6 +125,12 @@ def sidebar(broker, broker_error):
     st.sidebar.markdown(f"**E2 data cache:** {'on' if cfg.get('e2_cache_enabled') else 'off'}")
     e3_on = os.getenv("E3_TRACE_ENABLED", "").lower() in {"1", "true", "yes"}
     st.sidebar.markdown(f"**E3 tracing:** {'on (Langfuse)' if e3_on else 'off'}")
+    try:
+        limits = run_budget.dashboard_budget_from_env()
+        st.sidebar.markdown(f"**Per-run limits:** {limits.describe() if limits else 'off'}")
+        run_budget.check_pricing(limits)
+    except ValueError as exc:
+        st.sidebar.error(str(exc))
 
     st.sidebar.header("Paper trading")
     if broker is None:
@@ -164,6 +171,8 @@ def _start(ticker_text, trade_date, analysts, rounds, broker):
         chosen = [a for a in analysts if not (asset_type == "crypto" and a == "fundamentals")]
         if not chosen:
             raise ValueError("choose at least one analyst")
+        limits = run_budget.dashboard_budget_from_env()
+        run_budget.check_pricing(limits)     # a cost limit needs prices: refuse rather than run unlimited
         config = service.config_for_source("dashboard")
         # As in the CLI: an explicit TRADINGAGENTS_MAX_*_ROUNDS wins over the depth picked here.
         for env, key in ROUND_ENVS:
@@ -172,7 +181,7 @@ def _start(ticker_text, trade_date, analysts, rounds, broker):
         portfolio = _portfolio(broker) if broker is not None else None
         request = service.AnalysisRequest(ticker=ticker, trade_date=trade_date, source="dashboard",
                                           asset_type=asset_type, analysts=tuple(chosen),
-                                          config=config, portfolio=portfolio)
+                                          config=config, portfolio=portfolio, budget=limits)
         job = jobs.start_job(request)
     except (ValueError, BrokerError, service.AnalysisBusyError) as exc:
         st.error(str(exc))
@@ -198,6 +207,9 @@ def progress(job):
     st.progress(done / total if total else 0.0,
                 text=f"Analyzing {job.request.ticker} for {job.request.trade_date}: "
                      f"{done}/{total} reports, next {label} ({snap['elapsed']:.0f}s)")
+    limits = job.request.budget
+    st.caption(f"Per-run limits: {limits.describe() if limits else 'off'}. The run stops before a model call "
+               "that would pass them.")
     with st.expander("Agent activity"):
         st.code("\n".join(job.log()[-40:]) or "Waiting for the first agent...", language=None)
     if st.button("Cancel analysis"):
@@ -207,6 +219,13 @@ def progress(job):
 
 # ------------------------------------------------------------------ results
 def results(job):
+    if job.status == "budget_exceeded":
+        st.error(f"Stopped by the per-run limit, not by you and not by a model error. {job.error or ''}")
+        st.markdown(run_budget.describe_snapshot(job.budget))
+        summary = _e3_summary_for(job.run_id)
+        if summary is not None:
+            st.markdown(cost_text(service.e3_cost(summary)))
+        return
     if job.status != "done":
         (st.warning if job.status == "cancelled" else st.error)(job.error or job.status)
         return
@@ -272,6 +291,17 @@ def _risk(state):
             st.markdown(debate.get(key) or "_None._")
 
 
+def _e3_summary_for(run_id: str) -> dict | None:
+    """The E3 summary a stopped run saved (its file name carries the run ID), if any."""
+    folder = Path(os.getenv("E3_RESULTS_DIR", "e3_results"))
+    for path in folder.glob(f"*_{run_id}_e3.json"):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+    return None
+
+
 def cost_text(cost: dict) -> str:
     """The E3 cost line: a figure is labelled an estimate only when E3 could compute one."""
     if cost["estimated_cost_usd"] is not None:
@@ -288,6 +318,7 @@ def _metrics(result):
     e2 = usage.get("e2_cache")
     cols[3].metric("E2 cache hit rate", f"{e2['hit_rate_pct']}%" if e2 and e2.get("hit_rate_pct") is not None
                    else "n/a")
+    st.markdown(run_budget.describe_snapshot(usage.get("run_budget")))
     st.markdown("**E1 backup-model switches this run:** "
                 + (str(len(result.fallback_events)) if result.fallback_events else "none"))
     for line in result.fallback_events:

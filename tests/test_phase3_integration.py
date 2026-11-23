@@ -113,6 +113,10 @@ def test_dashboard_page_runs_an_analysis_with_e1_e2_e3(phase2_on, monkeypatch):
 
     for name in (*ap.KEY_ENVS, *ap.SECRET_ENVS):
         monkeypatch.delenv(name, raising=False)
+    # This test is about E1/E2/E3 through the page; per-run limits have their own tests
+    # (tests/test_run_budget.py). Two analysts with a failing main model exceed the 15-call default.
+    monkeypatch.setenv("TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS", "off")
+    monkeypatch.setenv("TRADINGAGENTS_DASHBOARD_MAX_COST_USD", "off")
     page = AppTest.from_file(str(Path(trade.__file__).with_name("app.py")), default_timeout=30).run()
     next(t for t in page.text_input if t.label == "Ticker").input("NVDA")
     page.date_input[0].set_value(datetime.date.fromisoformat(TRADE_DATE))
@@ -160,6 +164,10 @@ def test_dashboard_paper_order_needs_a_signed_in_user(phase2_on, monkeypatch):
     monkeypatch.setattr(ap.AlpacaPaperBroker, "from_env",
                         classmethod(lambda cls, ledger=None: cls(trading, FakeData(price=100.0), ledger=ledger)))
     monkeypatch.setattr(ap, "_latest_trade_request", lambda symbol: type("R", (), {"symbol": symbol})())
+    # About sign-in and orders; per-run limits have their own tests (tests/test_run_budget.py), and this
+    # environment has no pricing file, which a cost limit needs.
+    monkeypatch.setenv("TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS", "off")
+    monkeypatch.setenv("TRADINGAGENTS_DASHBOARD_MAX_COST_USD", "off")
     st.cache_resource.clear()
 
     page = AppTest.from_file(str(Path(trade.__file__).with_name("app.py")), default_timeout=30).run()

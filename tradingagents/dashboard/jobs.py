@@ -25,13 +25,14 @@ MAX_LOG_LINES = 200
 class AnalysisJob:
     request: service.AnalysisRequest
     run_id: str
-    status: str = "running"            # running | done | failed | cancelled
+    status: str = "running"            # running | done | failed | cancelled | budget_exceeded
     progress: tuple[int, int, str] = (0, 0, "Starting")
     result: service.AnalysisResult | None = None
     error: str | None = None
     started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
     cancel: threading.Event = field(default_factory=threading.Event)
+    budget: dict | None = None         # the per-run limit's accounting when it stopped the run
     _log: deque = field(default_factory=lambda: deque(maxlen=MAX_LOG_LINES))
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -64,7 +65,13 @@ class AnalysisJob:
             if text:
                 kind = getattr(message, "kind", None) or type(message).__name__.removesuffix("Message")
                 lines.append(f"{kind}: {text[:400]}")
+        if event.kind == "budget":
+            from tradingagents.run_budget import describe_snapshot
+
+            lines.append(describe_snapshot(event.state))
         with self._lock:
+            if event.kind == "budget":
+                self.budget = dict(event.state or {})
             if event.kind == "step":
                 self.progress = event.progress
             self._log.extend(lines)
@@ -108,6 +115,10 @@ def start_job(request: service.AnalysisRequest, *,
     def work():
         try:
             result = run(request, on_event=job._event, cancel=job.cancel)
+        except service.AnalysisBudgetExceeded as exc:
+            # Stopped by the per-run limit: reported apart from a cancel by the person or a failure.
+            job.budget = exc.budget or job.budget
+            job._finish("budget_exceeded", error=str(exc))
         except service.AnalysisCancelled as exc:
             # The message says how many model calls were already running and not interrupted.
             job._finish("cancelled", error=str(exc))

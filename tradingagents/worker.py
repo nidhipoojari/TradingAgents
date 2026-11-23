@@ -213,6 +213,9 @@ def _child(conn, setup: str | None) -> None:
             send("call_end", str(run_id), time.time(), None, None, f"{type(error).__name__}: {error}"[:300])
 
     def on_event(event):
+        if event.kind == "budget":          # the per-run limit tripped: the parent starts its grace timer
+            send("budget", dict(event.state or {}))
+            return
         send("event", event.kind, event.progress, event.resuming, _portable_messages(event.messages))
 
     try:
@@ -222,7 +225,7 @@ def _child(conn, setup: str | None) -> None:
     except service.AnalysisCancelled as exc:
         send("cancelled", {"stage": exc.stage, "in_flight": exc.in_flight_model_calls,
                            "prevented": exc.prevented_calls, "released_after": exc.released_after_seconds,
-                           "message": str(exc)})
+                           "message": str(exc), "budget": getattr(exc, "budget", None)})
     except BaseException as exc:  # noqa: BLE001 - reported to the parent, which re-raises it
         send("error", type(exc).__name__, str(exc)[:2000])
     finally:
@@ -456,6 +459,7 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
     tally, began = _Tally(), time.time()
     cancel_sent_at = None
     flush_status = None
+    budget_info = None              # set when the child reports that the run's limit tripped
     outcome = None
     worker = None
     try:
@@ -502,6 +506,14 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
                 tally.end(*message[1:])
             elif kind == "flushed":
                 flush_status = message[1]
+            elif kind == "budget":
+                # The child is stopping itself; if a model call hangs, terminate it after the grace
+                # period exactly as for a cancel by the person.
+                budget_info = message[1]
+                if cancel_sent_at is None:
+                    cancel_sent_at = time.monotonic()
+                    with contextlib.suppress(BrokenPipeError, OSError):
+                        worker.conn.send(("cancel", grace))
             elif kind == "event" and on_event is not None:
                 _, event_kind, progress, resuming, messages = message
                 on_event(service.AnalysisEvent(request.run_id, event_kind, messages, None, resuming, progress))
@@ -526,7 +538,11 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
         return outcome[1]
     if kind == "cancelled":
         info = outcome[1]
-        exc = service.AnalysisCancelled(request.run_id, info["stage"], info["in_flight"], info["prevented"])
+        if info.get("budget"):
+            exc = service.AnalysisBudgetExceeded(request.run_id, info["stage"], info["in_flight"],
+                                                 info["prevented"], budget=info["budget"])
+        else:
+            exc = service.AnalysisCancelled(request.run_id, info["stage"], info["in_flight"], info["prevented"])
         exc.released_after_seconds = info["released_after"]
         exc.args = (info["message"],)
         exc.terminated = False
@@ -535,20 +551,26 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
         in_flight = len(tally.in_flight)
         if kind == "terminated":
             waited = round(time.monotonic() - cancel_sent_at, 3)
-            reason = (f"analysis {request.run_id} was cancelled; the worker did not stop within {grace:g}s "
+            stopped = (f"was stopped by its per-run limit ({budget_info.get('reason')})" if budget_info
+                       else "was cancelled")
+            reason = (f"analysis {request.run_id} {stopped}; the worker did not stop within {grace:g}s "
                       f"and was terminated ({in_flight} model call(s) in flight were abandoned, not undone: "
                       "the provider may still bill them)")
         else:
             reason = (f"analysis {request.run_id} failed: the worker sent no heartbeat for {silence_limit:g}s "
                       f"and was terminated ({in_flight} model call(s) in flight were abandoned, not undone: "
                       "the provider may still bill them)")
-        e3_path = _write_terminated_e3(request, tally, began, reason,
-                                       "cancelled" if kind == "terminated" else "failed", flush_status)
+        status = ("budget_exceeded" if budget_info else "cancelled") if kind == "terminated" else "failed"
+        e3_path = _write_terminated_e3(request, tally, began, reason, status, flush_status)
         if kind == "unresponsive":
             error = WorkerUnresponsive(reason)
             error.e3_summary_path = e3_path
             raise error
-        exc = service.AnalysisCancelled(request.run_id, "by terminating the worker", in_flight, 0)
+        if budget_info:
+            exc = service.AnalysisBudgetExceeded(request.run_id, "by terminating the worker", in_flight, 0,
+                                                 budget=budget_info)
+        else:
+            exc = service.AnalysisCancelled(request.run_id, "by terminating the worker", in_flight, 0)
         exc.released_after_seconds = waited
         exc.args = (reason,)
         exc.terminated = True

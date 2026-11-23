@@ -47,6 +47,7 @@ from tradingagents import e2_cache
 from tradingagents.agents.rating import is_review, run_rating
 from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.run_budget import BudgetGuard, RunBudget
 from tradingagents.run_stats import StatsCallbackHandler
 
 logger = logging.getLogger(__name__)
@@ -109,6 +110,22 @@ class AnalysisCancelled(RuntimeError):
         """Called once the graph has unwound and nothing of the run is still executing."""
         self.released_after_seconds = round(time.monotonic() - self.detected_at, 3)
         self.args = (self._message(),)
+
+
+class AnalysisBudgetExceeded(AnalysisCancelled):
+    """The run's per-run LLM limit (calls or estimated cost) stopped it: not a cancel by a person
+    and not a model failure. ``budget`` is the limit's final accounting (run_budget.BudgetGuard)."""
+
+    def __init__(self, run_id: str, stage: str, in_flight_model_calls: int = 0,
+                 prevented_calls: int = 0, budget: dict | None = None):
+        self.budget = budget or {}
+        super().__init__(run_id, stage, in_flight_model_calls, prevented_calls)
+
+    def _message(self) -> str:
+        cancelled = super()._message()
+        reason = self.budget.get("reason") or "per-run limit reached"
+        return cancelled.replace(f"analysis {self.run_id} was cancelled",
+                                 f"analysis {self.run_id} was stopped by its per-run limit ({reason})", 1)
 
 
 class _CancelSignal(BaseException):
@@ -244,10 +261,14 @@ class AnalysisRequest:
     config: Mapping[str, Any] | None = None
     portfolio: Any = None          # tradingagents.portfolio.PortfolioContext
     run_id: str | None = None
+    # Per-run LLM limits (run_budget.RunBudget); None = no limits (the CLI and MCP default).
+    budget: RunBudget | None = None
 
     def __post_init__(self):
         _check_source(self.source)
         safe_ticker_component(self.ticker)
+        if self.budget is not None and not isinstance(self.budget, RunBudget):
+            raise TypeError("budget must be a run_budget.RunBudget or None")
         if self.asset_type not in ("stock", "crypto"):
             raise ValueError(f"asset_type must be stock or crypto, got {self.asset_type!r}")
         chosen = set(self.analysts)
@@ -362,20 +383,37 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
     run_id = request.run_id or new_run_id()
     config = (copy.deepcopy(dict(request.config)) if request.config is not None
               else config_for_source(request.source))
+    limits = request.budget if request.budget is not None and request.budget.active else None
+    if limits is not None and cancel is None:
+        cancel = threading.Event()          # the limit stops the run through the cancel path
     guard = CancellationGuard(cancel) if cancel is not None else None
+    emit = on_event or (lambda event: None)
+    budget_guard = None
+
+    def stopped(stage: str) -> AnalysisCancelled:
+        """A stop is a budget stop when the limit tripped, otherwise a cancel by the caller."""
+        in_flight, prevented = (guard.in_flight, guard.prevented) if guard else (0, 0)
+        if budget_guard is not None and budget_guard.exhausted:
+            snapshot = budget_guard.snapshot()
+            return AnalysisBudgetExceeded(run_id, stage, in_flight, prevented + snapshot["llm_calls_refused"],
+                                          budget=snapshot)
+        return AnalysisCancelled(run_id, stage, in_flight, prevented)
 
     def check(stage: str) -> None:
         if cancel is not None and cancel.is_set():
-            raise AnalysisCancelled(run_id, stage, guard.in_flight if guard else 0,
-                                    guard.prevented if guard else 0)
+            raise stopped(stage)
 
     check("before it started")
+    if limits is not None:
+        # Raises ValueError for a cost limit without prices, before anything runs or is recorded.
+        budget_guard = BudgetGuard(limits, cancel, on_exhausted=lambda snapshot: emit(
+            AnalysisEvent(run_id, "budget", state=snapshot)))
     stats = stats_handler or StatsCallbackHandler()
     e3 = E3Session.from_env(ticker=ticker, analysis_date=trade_date, run_id=run_id,
                             source=request.source)
-    # The guard first: a refused call must not be counted as started by the others.
-    callbacks = [*([guard] if guard else []), stats, *e3.callbacks, *extra_callbacks]
-    emit = on_event or (lambda event: None)
+    # The limit, then the cancel guard, first: a refused call must not be counted as started by the others.
+    callbacks = [*([budget_guard] if budget_guard else []), *([guard] if guard else []), stats,
+                 *e3.callbacks, *extra_callbacks]
 
     try:
         try:
@@ -425,22 +463,24 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
             finally:
                 graph.end_checkpoint()
         except _CancelSignal as signal:
-            raise AnalysisCancelled(run_id, str(signal), guard.in_flight if guard else 0,
-                                    guard.prevented if guard else 0) from None
+            raise stopped(str(signal)) from None
         except AnalysisCancelled:
             raise
         except BaseException as exc:
             # A step that failed because the run was cancelled under it is a cancellation.
             if cancel is not None and cancel.is_set():
-                raise AnalysisCancelled(run_id, "during a step", guard.in_flight if guard else 0,
-                                        guard.prevented if guard else 0) from exc
+                raise stopped("during a step") from exc
             raise
     except AnalysisCancelled as cancelled:
         # The graph has unwound: LangGraph waited for every running task, so nothing
         # of this run executes past here and the lock can be released.
         cancelled.mark_released()
         e3.mark_analysis_finished()
-        e3.mark_cancelled(str(cancelled))
+        if isinstance(cancelled, AnalysisBudgetExceeded):
+            cancelled.budget = budget_guard.snapshot()          # final: calls in flight have returned
+            e3.mark_budget_exceeded(str(cancelled), cancelled.budget)
+        else:
+            e3.mark_cancelled(str(cancelled))
         e3.save()
         raise
     except BaseException as exc:
@@ -464,6 +504,9 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
         usage["e2_cache"] = _e2_delta(e2_before, e2_cache.stats_snapshot())
     usage["run_id"] = run_id
     usage["source"] = request.source
+    if budget_guard is not None:
+        usage["run_budget"] = budget_guard.snapshot()
+        e3.run_budget = usage["run_budget"]
 
     results_dir = run_directory(config, ticker, trade_date)
     results_dir.mkdir(parents=True, exist_ok=True)

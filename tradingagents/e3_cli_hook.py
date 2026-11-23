@@ -126,6 +126,12 @@ class E3Session:
         self.status = "cancelled"
         self.run_error = reason[:500]
 
+    def mark_budget_exceeded(self, reason: str, budget: dict | None = None):
+        """Phase 3: a run stopped by its per-run LLM limit; distinct from a cancel or a failure."""
+        self.status = "budget_exceeded"
+        self.run_error = reason[:500]
+        self.run_budget = budget
+
     def mark_failed(self, error: BaseException | str):
         """Phase 3: record a run that raised, so its summary says why."""
         self.status = "failed"
@@ -183,6 +189,8 @@ class E3Session:
                 summary["run_id"] = self.run_id
             if self.source:
                 summary["source"] = self.source
+            if getattr(self, "run_budget", None):         # Phase 3: per-run limits and their use
+                summary["run_budget"] = self.run_budget
             # Langfuse first, bounded, so the summary can say whether the traces went out.
             if self.client is not None:
                 summary["langfuse_flush"] = bounded_flush(self.client, flush_timeout())

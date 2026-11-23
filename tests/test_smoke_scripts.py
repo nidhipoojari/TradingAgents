@@ -768,7 +768,10 @@ def test_the_order_paths_lookups_are_expected_not_found(alpaca_smoke, tmp_path, 
     status, detail = checks["requests"]
     assert status == "PASS" and "trading.get_order_by_client_id" in detail
     # No position (read check + the broker's fresh pre-submit check), and no earlier order with this ID.
-    assert detail.count("trading.get_open_position 0.0 ms [EXPECTED_NOT_FOUND]") == 2
-    assert detail.count("trading.get_order_by_client_id 0.0 ms [EXPECTED_NOT_FOUND]") == 1
+    # Durations vary with machine load, so match any; the labels and counts are what matter.
+    import re
+
+    assert len(re.findall(r"trading\.get_open_position [\d.]+ ms \[EXPECTED_NOT_FOUND\]", detail)) == 2
+    assert len(re.findall(r"trading\.get_order_by_client_id [\d.]+ ms \[EXPECTED_NOT_FOUND\]", detail)) == 1
     assert detail.count("[EXPECTED_NOT_FOUND]") == 3 and "0 unexpected errors" in detail
     assert len(account.submitted) == 1 and checks["order.final_status"] == ("PASS", "canceled")
