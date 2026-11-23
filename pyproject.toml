@@ -40,6 +40,15 @@ dev = [
 e3 = [
     "langfuse>=3.0,<5.0",
 ]
+# F1 (Phase 3): Streamlit dashboard with human-approved Alpaca paper trading
+dashboard = [
+    "streamlit>=1.50,<2",
+    "alpaca-py>=0.40,<1",
+]
+# F2 (Phase 3): MCP server exposing the read-only analyze_stock tool
+mcp = [
+    "fastmcp>=4.2,<5",
+]
 # Amazon Bedrock support (AWS SigV4 auth + boto3). Optional so the core install
 # stays lean: pip install "tradingagents[bedrock]".
 bedrock = [

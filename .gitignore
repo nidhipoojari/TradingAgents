@@ -221,3 +221,10 @@ __marimo__/
 # Enterprise env file (secrets) and generated run reports
 .env.enterprise
 reports/
+
+# Phase 3 live smoke-test output (scripts/smoke/). Only this folder: other results/ and eval/ stay tracked or visible.
+/results/phase3_smoke/
+# Phase 3 dashboard secrets and session data, wherever they are placed in the repo (never commit these).
+dashboard_users*.json
+dashboard_auth.sqlite*
+paper_orders.jsonl
