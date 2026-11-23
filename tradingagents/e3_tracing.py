@@ -191,6 +191,26 @@ class E3MetricsCallback(BaseCallbackHandler):
 
             priced_calls += 1
 
+        # Phase 3 (additive): calls that failed without reporting usage, typically an
+        # E1 main-model 429 before the backup answered. They make estimated_cost_usd
+        # None above (it stays strict: a failed call can still be billed, e.g. a
+        # timeout after the provider generated output). This second estimate covers
+        # the calls that succeeded, so a run with an E1 fallback still has a figure.
+        def _failed_without_usage(event):
+            return event["error"] is not None and (event["input_tokens"] is None or event["output_tokens"] is None)
+
+        failed_without_usage = sum(1 for e in observations if _failed_without_usage(e))
+        successful = [e for e in observations if not _failed_without_usage(e)]
+        successful_cost, successful_complete = 0.0, bool(successful) and bool(pricing)
+        for event in successful:
+            entry = (pricing or {}).get(event["model"]) or {}
+            if (event["input_tokens"] is None or event["output_tokens"] is None
+                    or "input_per_million_usd" not in entry or "output_per_million_usd" not in entry):
+                successful_complete = False
+                continue
+            successful_cost += (event["input_tokens"] * entry["input_per_million_usd"]
+                                + event["output_tokens"] * entry["output_per_million_usd"]) / 1_000_000
+
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for record in observations:
             grouped[record["agent"]].append(record)
@@ -237,6 +257,8 @@ class E3MetricsCallback(BaseCallbackHandler):
             "unpriced_llm_calls": unpriced_calls,
             "cost_note": ("Estimate from supplied model pricing and reported tokens; does not include tools or infrastructure."
                           if cost_complete else "Not calculated: supply pricing for every model and ensure every LLM callback includes token usage."),
+            "failed_calls_without_usage": failed_without_usage,
+            "estimated_cost_usd_successful_calls": round(successful_cost, 6) if successful_complete else None,
             "limitations": [
                 "Unattributed events may appear when the agent/node is absent from callback metadata.",
                 "Tokens are counted only when reported by the underlying provider.",
