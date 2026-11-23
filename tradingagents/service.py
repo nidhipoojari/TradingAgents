@@ -28,6 +28,7 @@ waiting minutes in a queue.
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import json
 import logging
@@ -182,6 +183,37 @@ class CancellationGuard(BaseCallbackHandler):
 
     def on_tool_start(self, serialized, input_str, **kwargs):
         self._gate("tool call")
+
+
+class _FailedCallCounter(BaseCallbackHandler):
+    """Counts model calls that ended in an error (for a failed run's record; adds nothing to a success)."""
+
+    def __init__(self):
+        super().__init__()
+        self._lock = threading.Lock()
+        self.failed = 0
+
+    def on_llm_error(self, error, **kwargs):
+        with self._lock:
+            self.failed += 1
+
+
+_SECRET_PATTERNS = (r"AIza[0-9A-Za-z_\-]{30,}", r"\b(?:sk|pk)-lf-[0-9A-Za-z\-]{8,}", r"Bearer\s+[A-Za-z0-9._\-]{12,}",
+                    r"(?i)\b(?:api[_-]?key|key|token|secret)=[^\s&'\"]{8,}")
+
+
+def sanitize_error(error: BaseException | str, limit: int = 500) -> str:
+    """One line, bounded, with any credential-looking value removed: safe to save and to show."""
+    import re
+
+    text = error if isinstance(error, str) else f"{type(error).__name__}: {error}"
+    for name, value in os.environ.items():
+        if value and len(value) >= 8 and any(k in name for k in ("KEY", "SECRET", "TOKEN", "PASSWORD")):
+            text = text.replace(value, "[redacted]")
+    for pattern in _SECRET_PATTERNS:
+        text = re.sub(pattern, "[redacted]", text)
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def new_run_id() -> str:
@@ -412,8 +444,17 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
     e3 = E3Session.from_env(ticker=ticker, analysis_date=trade_date, run_id=run_id,
                             source=request.source)
     # The limit, then the cancel guard, first: a refused call must not be counted as started by the others.
+    failed_calls = _FailedCallCounter()
     callbacks = [*([budget_guard] if budget_guard else []), *([guard] if guard else []), stats,
-                 *e3.callbacks, *extra_callbacks]
+                 *e3.callbacks, *extra_callbacks, failed_calls]
+    # Taken before anything runs, for a failed run's record (a success measures from its usual points).
+    began_wall = time.time()
+    e2_on = bool(config.get("e2_cache_enabled", False) or e2_cache.is_enabled())
+    e2_initial = e2_cache.stats_snapshot()
+    e2_rows_initial = e2_cache.row_count(config.get("data_cache_dir")) if e2_on else None
+    fallback_log = Path(config["results_dir"]) / FALLBACK_LOG_NAME
+    fallback_initial = _size(fallback_log)
+    started = e2_before = fallback_mark = None
 
     try:
         try:
@@ -422,7 +463,6 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
             graph = graph_factory(list(request.analysts), config=config, debug=False, callbacks=callbacks)
             started = time.time()
             e2_before = e2_cache.stats_snapshot()
-            fallback_log = Path(config["results_dir"]) / FALLBACK_LOG_NAME
             fallback_mark = _size(fallback_log)
 
             check("before the instrument lookup")
@@ -485,8 +525,17 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
         raise
     except BaseException as exc:
         e3.mark_analysis_finished()
-        e3.mark_failed(exc)
+        error = sanitize_error(exc)
+        e3.mark_failed(error)
+        if budget_guard is not None:
+            e3.run_budget = budget_guard.snapshot()
         e3.save()
+        _record_failure(exc, error=error, request=request, run_id=run_id, config=config, stats=stats,
+                        failed_calls=failed_calls.failed, started=started or began_wall,
+                        e2_on=e2_on, e2_before=e2_before or e2_initial, e2_rows_before=e2_rows_initial,
+                        fallback_log=fallback_log,
+                        fallback_mark=fallback_mark if fallback_mark is not None else fallback_initial,
+                        budget_guard=budget_guard, e3=e3)
         raise
     e3.mark_analysis_finished()
 
@@ -524,6 +573,63 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
         e3_summary_path=e3.saved_path, fallback_events=_new_lines(fallback_log, fallback_mark),
         graph=graph, e3=e3,
     )
+
+
+def _record_failure(exc, *, error, request, run_id, config, stats, failed_calls, started, e2_on, e2_before,
+                    e2_rows_before, fallback_log, fallback_mark, budget_guard, e3) -> None:
+    """Write a failed run's token_usage.json with what is known, and attach it to the exception.
+
+    Counts and tokens are those the run reported before it failed; nothing is estimated for calls
+    that reported no usage. Never raises: recording must not hide the original error.
+    """
+    try:
+        counted = stats.get_stats()
+        usage = {
+            **counted,
+            "llm_provider": config.get("llm_provider"),
+            "quick_think_llm": config.get("quick_think_llm"),
+            "deep_think_llm": config.get("deep_think_llm"),
+            "elapsed_seconds": round(time.time() - started, 1),
+        }
+        usage["tokens_total"] = usage["tokens_in"] + usage["tokens_out"]
+        usage.update(
+            run_id=run_id, source=request.source, status="failed", error=error,
+            llm_calls_failed=failed_calls, llm_calls_succeeded=max(counted.get("llm_calls", 0) - failed_calls, 0),
+            tokens_note="tokens reported by the calls that completed; calls that failed reported none",
+            e1_fallback_events=_new_lines(fallback_log, fallback_mark),
+        )
+        if e2_on:
+            usage["e2_cache"] = _e2_delta(e2_before, e2_cache.stats_snapshot())
+            rows_after = e2_cache.row_count(config.get("data_cache_dir"))
+            if e2_rows_before is not None and rows_after is not None:
+                usage["e2_cache"]["saved_entries"] = rows_after - e2_rows_before
+        if budget_guard is not None:
+            usage["run_budget"] = budget_guard.snapshot()
+        summary = None
+        if e3.saved_path is not None:
+            usage["e3_summary_path"] = str(e3.saved_path)
+            try:
+                summary = json.loads(Path(e3.saved_path).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                summary = None
+        cost = e3_cost(summary)
+        usage["e3_cost"] = {"estimated_cost_usd": cost["estimated_cost_usd"], "basis": cost["basis"],
+                            "partial_cost_usd": cost["partial_cost_usd"], "note": cost["note"]}
+        if summary:
+            usage["langfuse_flush"] = summary.get("langfuse_flush")
+            usage["per_agent"] = summary.get("per_agent")
+            usage["timing"] = summary.get("timing")
+        results_dir = run_directory(config, request.ticker, request.trade_date)
+        results_dir.mkdir(parents=True, exist_ok=True)
+        usage_path = results_dir / "token_usage.json"
+        usage_path.write_text(json.dumps(usage, indent=2), encoding="utf-8")
+    except Exception:  # noqa: BLE001 - the run's own error is what the caller must see
+        logger.warning("could not record the failed run %s", run_id, exc_info=True)
+        return
+    for name, value in (("analysis_failure", usage), ("usage_path", usage_path),
+                        ("e3_summary_path", e3.saved_path)):
+        with contextlib.suppress(AttributeError, TypeError):    # some exception types refuse attributes
+            setattr(exc, name, value)
 
 
 def _e2_delta(before: dict, after: dict) -> dict:

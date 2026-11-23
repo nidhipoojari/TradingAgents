@@ -105,6 +105,26 @@ unchanged, so trading behaviour does not depend on it.
 **Credentials:** paper keys from the environment only; the dashboard password through `getpass` (not echoed,
 not stored); the account number is shown masked; every printed and saved detail is redacted.
 
+## 3. Live dashboard, F1 (`scripts/smoke/live_dashboard.py`)
+
+**Approval:** `--approve-live-llm` (ONE analysis through the real Streamlit page). Run it with a Python that has
+Playwright and a Chromium build (a test-only tool, not a project dependency); the dashboard itself runs in the
+project virtualenv (`--project-python`, default `.venv/bin/python`). Without the flag it prints the plan and an
+offline pre-flight and exits 2.
+
+**What it runs:**
+- *Setup:* NVDA, 2026-10-23, Market analyst, Shallow depth (1 debate and 1 risk round). Per-run limits 15 LLM
+  calls and $0.04, E2 on in a fresh folder, E3 and Langfuse from `.env`, Alpaca keys blanked (paper trading
+  off), `STREAMLIT_SERVER_HEADLESS=true` with stdin closed, all output in a new folder under
+  `results/phase3_smoke/`. A throwaway user `live-tester` gets a password generated into a 0600 file.
+- *The click:* every pre-run setting is checked (sidebar models, E2, E3, limits, paper trading off, sign-in, the
+  form read back exactly); Run is clicked once only if all pass.
+- *The outcome:* the page is watched for a terminal state, which is recorded at once with its message,
+  screenshot, run ID and metrics. Cancel is clicked only if still running at `--limit-seconds` (300); nothing
+  is retried.
+
+Exit code: 0 completed with every check passed, 1 otherwise, 2 not run. Report: `live_dashboard_report.json`.
+
 ## Approval
 
 Run nothing here without approval for that specific test: test 1 makes billable Gemini calls and sends
@@ -219,3 +239,26 @@ not rewritten, so runs 2 and 3 still show "(failed)" for these requests.
   failed-cancel and ambiguous-submit handling are verified offline only.
 - The dashboard and MCP server were not driven live; they use the same shared service and broker, tested
   offline (Streamlit `AppTest`, an in-memory MCP client).
+
+## Live F1 dashboard run (2026-11-23): did not complete (Gemini 503)
+
+`results/phase3_smoke/dashboard_live_20261123_113727` (git-ignored, kept), commit `7a2412a`, run
+`20261123-113910-4266de44`, driven by the uncommitted predecessor of `scripts/smoke/live_dashboard.py`.
+
+- **Start-up.** The first server start exited at Streamlit's first-run e-mail prompt before serving
+  (`server_attempt1_onboarding_prompt.log`; no analysis started). Restarted with `STREAMLIT_SERVER_HEADLESS=true`.
+- **Pre-run checks.** All passed: the dashboard was healthy on 127.0.0.1 only; the sidebar showed the models, E2,
+  E3, "Per-run limits: 15 LLM calls, $0.04 estimated cost" and paper trading off; sign-in worked; the form read
+  back NVDA / 2026-10-23 / Market / Shallow.
+- **The run.** Run was clicked once. The Market Analyst's 2 calls succeeded (7,021 / 1,464 tokens). The Bull
+  Researcher's primary call returned **503 UNAVAILABLE** (provider overload). E1 switched to the backup, which
+  also returned 503, after 36.1 s of client-internal retries.
+- **The outcome.** The run failed after 47.9 s, with worker start-up about 6-7 s before it: 4 calls, $0.005766
+  (successful calls), limits not reached. E3 status `failed`; Langfuse flush `ok` and 25 observations under the
+  run's session.
+- **Browser and cleanup.** No browser errors and no outside hosts. No worker remained after shutdown. Credential
+  scan: none.
+- **Not retried.** The driver waited until 300 s because it could not see the failure; nothing was cancelled (the
+  run had already ended).
+- **Gaps found and fixed (offline) afterwards.** Failed runs now keep their records, the driver detects every
+  terminal state, and the launcher starts Streamlit headless. See "Failed-run reporting" in `PHASE3_CHANGES.md`.

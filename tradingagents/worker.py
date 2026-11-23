@@ -227,7 +227,9 @@ def _child(conn, setup: str | None) -> None:
                            "prevented": exc.prevented_calls, "released_after": exc.released_after_seconds,
                            "message": str(exc), "budget": getattr(exc, "budget", None)})
     except BaseException as exc:  # noqa: BLE001 - reported to the parent, which re-raises it
-        send("error", type(exc).__name__, str(exc)[:2000])
+        # With what the run recorded before failing (service._record_failure), for the parent's caller.
+        send("error", type(exc).__name__, service.sanitize_error(str(exc), 2000),
+             getattr(exc, "analysis_failure", None))
     finally:
         finished.set()
         with contextlib.suppress(OSError):
@@ -383,6 +385,52 @@ class _Tally:
         return [r for r in self.calls.values() if r["end"] is None]
 
 
+def _write_partial_usage(request, tally: _Tally, began: float, reason: str, e3_path: Path | None,
+                         budget_info: dict | None) -> tuple[dict | None, Path | None]:
+    """token_usage.json for a run whose worker failed, from the calls the child streamed.
+
+    Only what the parent saw: completed calls with the tokens they reported; calls still running
+    have none. E2 counters lived in the child and are unknown. Never raises.
+    """
+    try:
+        calls = list(tally.calls.values())
+        finished = [r for r in calls if r["end"] is not None]
+        tokens_in = sum(r["input_tokens"] or 0 for r in finished)
+        tokens_out = sum(r["output_tokens"] or 0 for r in finished)
+        summary = None
+        if e3_path is not None:
+            with contextlib.suppress(OSError, ValueError):
+                summary = json.loads(Path(e3_path).read_text(encoding="utf-8"))
+        cost = service.e3_cost(summary)
+        usage = {
+            "llm_calls": len(calls), "tool_calls": None, "tokens_in": tokens_in, "tokens_out": tokens_out,
+            "tokens_total": tokens_in + tokens_out, "elapsed_seconds": round(time.time() - began, 1),
+            "run_id": request.run_id, "source": request.source, "status": "failed",
+            "error": service.sanitize_error(reason),
+            "llm_calls_failed": sum(1 for r in finished if r["error"]),
+            "llm_calls_succeeded": sum(1 for r in finished if not r["error"]),
+            "llm_calls_in_flight": len(calls) - len(finished),
+            "tokens_note": ("from the calls the worker reported before it failed; calls in flight reported "
+                            "none; tool calls and E2 counters were not reported"),
+            "e2_cache": None,
+            "e3_cost": {"estimated_cost_usd": cost["estimated_cost_usd"], "basis": cost["basis"],
+                        "partial_cost_usd": cost["partial_cost_usd"], "note": cost["note"]},
+        }
+        if budget_info:
+            usage["run_budget"] = budget_info
+        if e3_path is not None:
+            usage["e3_summary_path"] = str(e3_path)
+        config = request.config if request.config is not None else service.config_for_source(request.source)
+        target = service.run_directory(config, request.ticker, request.trade_date)
+        target.mkdir(parents=True, exist_ok=True)
+        path = target / "token_usage.json"
+        path.write_text(json.dumps(usage, indent=2), encoding="utf-8")
+        return usage, path
+    except Exception:  # noqa: BLE001
+        logger.warning("could not record the failed run %s", request.run_id, exc_info=True)
+        return None, None
+
+
 def _write_terminated_e3(request, tally: _Tally, began: float, reason: str, status: str,
                          flush_status: str | None) -> Path | None:
     """The E3 summary of a terminated run, from the call records the child streamed.
@@ -497,6 +545,12 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
             try:
                 message = worker.conn.recv()
             except (EOFError, OSError):
+                # The pipe is closed and every message has been read. A finished child sends its outcome
+                # before closing it, so a child that is gone now died mid-run: say so at once, instead of
+                # spinning on the closed pipe until the heartbeat watchdog misreports it as unresponsive.
+                worker.process.join(2)
+                if not worker.process.is_alive():
+                    outcome = ("died", worker.process.exitcode)
                 continue
             last_heard = time.monotonic()
             kind = message[0]
@@ -565,6 +619,8 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
         if kind == "unresponsive":
             error = WorkerUnresponsive(reason)
             error.e3_summary_path = e3_path
+            error.analysis_failure, error.usage_path = _write_partial_usage(
+                request, tally, began, reason, e3_path, budget_info)
             raise error
         if budget_info:
             exc = service.AnalysisBudgetExceeded(request.run_id, "by terminating the worker", in_flight, 0,
@@ -578,13 +634,24 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
         exc.langfuse_flush = flush_status or "not attempted"
         raise exc
     if kind == "error":
-        _, name, text = outcome
+        _, name, text, *rest = outcome
         if name == "AnalysisBusyError":
             raise service.AnalysisBusyError(text)
-        if name in ("ValueError",):
-            raise ValueError(text)
-        raise RuntimeError(f"{name}: {text}")
-    raise RuntimeError(f"the analysis worker exited unexpectedly (exit code {outcome[1]})")
+        error = ValueError(text) if name in ("ValueError",) else RuntimeError(f"{name}: {text}")
+        partial = rest[0] if rest else None
+        if partial:                          # written by the child (service._record_failure)
+            error.analysis_failure = partial
+            error.e3_summary_path = Path(partial["e3_summary_path"]) if partial.get("e3_summary_path") else None
+            error.usage_path = service.run_directory(request.config, request.ticker, request.trade_date) \
+                / "token_usage.json"
+        raise error
+    reason = f"analysis {request.run_id} failed: the analysis worker exited unexpectedly (exit code {outcome[1]})"
+    e3_path = _write_terminated_e3(request, tally, began, reason, "failed", flush_status)
+    error = RuntimeError(reason)
+    error.e3_summary_path = e3_path
+    error.analysis_failure, error.usage_path = _write_partial_usage(request, tally, began, reason, e3_path,
+                                                                    budget_info)
+    raise error
 
 
 def analysis_runner():

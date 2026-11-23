@@ -551,6 +551,92 @@ over 15 calls) and `test_dashboard_paper_order_needs_a_signed_in_user` (sign-in 
 - the 3-characters-per-token input estimate is approximate, and prices are only as current as
   `E3_PRICING_JSON`.
 
+## Failed-run reporting, and the live F1 Gemini 503 incident (2026-11-23)
+
+**The incident.** The one authorized live dashboard analysis (`results/phase3_smoke/dashboard_live_20261123_113727`,
+run `20261123-113910-4266de44`; NVDA, 2026-10-23, Market analyst, Shallow; limits 15 calls / $0.04; Alpaca keys
+blanked) did not complete. The Market Analyst's two calls succeeded (7,021 input / 1,464 output tokens). Then the
+Bull Researcher's call to `gemini-3.5-flash-lite` returned **HTTP 503 UNAVAILABLE** ("This model is currently
+experiencing high demand"), E1 switched to `gemini-3.1-flash-lite`, and the backup returned 503 as well, after
+36.1 s inside the Gemini client's own retries. The run stopped as a model failure after 47.9 s: 4 calls,
+successful-calls estimate $0.005766, neither limit reached, E3 status `failed`, Langfuse flush `ok`, 25 Langfuse
+observations under the run's session. The cause was provider capacity, not the application; it was not retried.
+
+It exposed three gaps, fixed here:
+
+1. *A failed run kept almost nothing.* Only the E3 summary was written; there was no `token_usage.json`, no E2
+   counters, no budget accounting, and the dashboard showed only the error, without the run ID.
+2. *The browser driver could not see a failure.* It waited only for a result, so it waited the full 300 s.
+3. *Unattended start-up could block.* Started under a real home folder, Streamlit stopped at its first-run
+   e-mail prompt and exited before serving (this happened once before the run; no analysis had started).
+
+**Failed runs now keep what they recorded** (`service._record_failure`). On any failure that is not a cancel or a
+budget stop, the service still saves the E3 summary, now with a sanitized error and the budget block, and writes
+`token_usage.json` with `status: "failed"`:
+
+- `run_id`, `source`, `error` (one line, at most 500 characters, with credential-looking values and the values of
+  `*KEY*`/`*SECRET*`/`*TOKEN*`/`*PASSWORD*` variables replaced by `[redacted]`);
+- `llm_calls`, `llm_calls_succeeded`, `llm_calls_failed`, `tool_calls`, and `tokens_in`/`tokens_out` *as
+  reported* (a failed call reports none; `tokens_note` says so; nothing is estimated);
+- `e1_fallback_events` (this run's lines from the E1 fallback log);
+- `e2_cache` with hits, misses, skipped and `saved_entries` (the cache's row count before and after the run);
+- `run_budget` (limits, calls started, refused, cost charged, reservations still in flight);
+- `e3_cost` (the full estimate, or the successful-calls estimate with its basis, or none with a labelled lower
+  bound, per `service.e3_cost`), plus `per_agent`, `timing` and `langfuse_flush` from the E3 summary.
+
+Recording never hides the original error: it is attached to the exception (`analysis_failure`, `usage_path`,
+`e3_summary_path`) and the exception is re-raised unchanged. Completed runs, cancels and budget stops write
+exactly what they did before (tested). Like a completed run's, the file is per ticker and date, so the latest
+run replaces it; E3 summaries are per run ID and are never replaced. `scripts/phase2_eval.py` ignores a record
+marked `failed`, so Phase 2's tables still count completed runs only.
+
+**Through the worker.** The child sends its failure record with the error, and the parent attaches it to the
+exception it raises. When the worker itself fails, the parent writes the record from the calls the child streamed
+(completed calls with their reported tokens, calls in flight counted as such, E2 counters `null` because they
+lived in the child): after the heartbeat watchdog terminates an unresponsive worker, and now also when the worker
+dies, which also gets an E3 summary. **Bug fixed:** a worker that died mid-run was not detected as dead. Its closed
+pipe kept reading as "ready", so the parent spun until the 30 s heartbeat limit and reported "no heartbeat …
+terminated". It is now reported at once as "exited unexpectedly (exit code N)".
+
+**Dashboard.** A failed run shows "The analysis failed: <error>" (keeping the provider's error type rather than
+the worker's `RuntimeError` wrapper), the **run ID**, and what it used before failing: calls succeeded and failed,
+tokens reported, E1 switches, E2 hits, misses and saved entries, the E3 cost line, and the budget line.
+
+**Live-test launcher** (`scripts/smoke/live_dashboard.py`, replacing the uncommitted driver used for the run).
+It prints its plan and exits 2 without `--approve-live-llm`. It starts `tradingagents-dashboard` with
+`STREAMLIT_SERVER_HEADLESS=true` and stdin closed, so nothing can block on a prompt; the interactive
+`tradingagents-dashboard` command is unchanged. It refuses to click Run unless every pre-run check passes, clicks
+it once, and recognises the four terminal states from the page (completed, failed, cancelled, budget_exceeded).
+On any of them it stops at once and saves the message (main-area alerts only), a screenshot, the run ID, the
+metrics shown, and the run's E3 summary, `token_usage.json` and fallback log. It clicks Cancel only if the run is
+still running at the time limit, and never retries.
+
+**Tests:** `tests/test_failed_run_reporting.py` (12) covers the incident on the real graph:
+- the full record, the primary and backup failures, E2 counters and budget accounting surviving a failure;
+- credentials removed from the saved error, and a failure before any call reporting zero with nothing invented;
+- completed runs unchanged, and cancel and budget stops unchanged;
+- a provider failure crossing the worker with its record, and the finished worker exiting;
+- a worker dying mid-call, reported at once with a parent-side record;
+- the dashboard job and the real page through AppTest.
+
+`tests/test_live_dashboard_script.py` (12) covers headless start-up, the environment handed to the dashboard, the
+unchanged interactive launcher, plan-only mode with no process or network call, all four terminal states, never
+cancelling a finished run, and detecting a failure at once.
+
+**Real local test, scripted models.** The committed script drove the real dashboard and worker, offline:
+- *scripted 503 after two calls:* detected as `failed` in 12-16 s (not 300 s); run ID, message, screenshot and
+  "4 LLM call(s) (2 succeeded, 2 failed)", 2 E1 switches, "0 hits, 2 misses, 2 saved", the E3 basis and the
+  budget line shown and saved;
+- *success:* completed in 11 s, all tabs rendered, `token_usage.json` unchanged;
+- in both, no browser errors, no outside hosts, no order, server and workers gone afterwards.
+
+**Remaining limitations.**
+- A worker that dies or is terminated loses the child's E2 counters and tool-call count (reported as `null`).
+- A failed call's tokens are unknown, so cost has at best the successful-calls basis.
+- The budget estimate is more conservative than E3's: it charges failed calls their input estimate.
+- The MCP tool's failure message does not include the run ID (unchanged).
+- Retries inside the Gemini client (the backup took 36 s) remain invisible to E1, E3 and the budget.
+
 ## Live smoke tests
 
 Completed on 2026-11-22: see `PHASE3_SMOKE_TESTS.md` (`scripts/smoke/`) for the commands, safeguards and full

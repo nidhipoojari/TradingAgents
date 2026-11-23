@@ -10,6 +10,7 @@ without it.
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from collections import deque
@@ -33,6 +34,7 @@ class AnalysisJob:
     finished_at: float | None = None
     cancel: threading.Event = field(default_factory=threading.Event)
     budget: dict | None = None         # the per-run limit's accounting when it stopped the run
+    failure: dict | None = None        # a failed run's record (calls, tokens, cost basis, E1/E2), if any
     _log: deque = field(default_factory=lambda: deque(maxlen=MAX_LOG_LINES))
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -85,6 +87,15 @@ class AnalysisJob:
                 self.progress = (done, done, "Done")
 
 
+def _described(exc: BaseException) -> str:
+    """The error as a person should read it. The worker re-raises a child's error as
+    RuntimeError("<original type>: <message>"); keep that original type instead of prefixing another."""
+    text = str(exc)
+    if type(exc) is RuntimeError and re.match(r"^[A-Za-z_][\w.]*(Error|Exception|Exit): ", text):
+        return text
+    return f"{type(exc).__name__}: {text}"
+
+
 def _text(content) -> str:
     if isinstance(content, str):
         return content.strip()
@@ -123,7 +134,8 @@ def start_job(request: service.AnalysisRequest, *,
             # The message says how many model calls were already running and not interrupted.
             job._finish("cancelled", error=str(exc))
         except Exception as exc:  # noqa: BLE001 - shown to the person, not swallowed
-            job._finish("failed", error=f"{type(exc).__name__}: {exc}")
+            job.failure = getattr(exc, "analysis_failure", None)
+            job._finish("failed", error=service.sanitize_error(_described(exc)))
         else:
             job._finish("done", result=result)
 

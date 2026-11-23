@@ -171,3 +171,36 @@ def record_startup_side_effects() -> None:
     e1_routing.create_tier_client = lambda cfg, tier, **k: note(f"model client {tier}") or __import__(
         "tests.test_graph_end_to_end", fromlist=["_Client"])._Client(
         model.model_copy(update={"callbacks": k.get("callbacks")}))
+
+
+# ------------------------------------------------------------------ provider failures (failed-run records)
+_CALLS = {"n": 0}
+
+
+def _after_two_calls(action):
+    """Scripted models whose first two calls succeed; every later call runs ``action``."""
+    _offline_vendors()
+    model = _scripted()
+
+    class Failing(type(model)):
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            _CALLS["n"] += 1
+            if _CALLS["n"] > 2:
+                action()
+            return super()._generate(messages, stop, run_manager, **kwargs)
+
+    _models(Failing())
+
+
+def _unavailable():
+    raise RuntimeError("503 UNAVAILABLE: This model is currently experiencing high demand.")
+
+
+def fail_after_two_calls() -> None:
+    """As the live incident: two successful calls, then the provider answers 503 to everything."""
+    _after_two_calls(_unavailable)
+
+
+def die_after_two_calls() -> None:
+    """The worker process itself dies inside its third model call."""
+    _after_two_calls(lambda: os._exit(3))

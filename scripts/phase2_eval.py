@@ -170,6 +170,8 @@ def _collect(run_dir: Path, ticker: str, primary_model: str) -> dict:
     row: dict = {}
     usage_files = list((run_dir / "results").glob(f"{ticker}/{DATE}/token_usage.json"))
     usage = json.loads(usage_files[0].read_text()) if usage_files else {}
+    if usage.get("status") == "failed":     # Phase 3 records failed runs too; Phase 2 counted only completed ones
+        usage = {}
     row.update(llm_calls=usage.get("llm_calls"), tool_calls=usage.get("tool_calls"),
                tokens_in=usage.get("tokens_in"), tokens_out=usage.get("tokens_out"),
                tokens_total=usage.get("tokens_total"), cli_elapsed_seconds=usage.get("elapsed_seconds"))

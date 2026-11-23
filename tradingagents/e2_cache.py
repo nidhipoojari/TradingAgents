@@ -170,6 +170,20 @@ def stats_snapshot() -> dict:
     return counts
 
 
+def row_count(cache_dir) -> int | None:
+    """How many answers the cache under ``cache_dir`` holds (read-only), or None without a cache file."""
+    if not cache_dir:
+        return None
+    path = Path(cache_dir) / "e2_cache.sqlite"
+    if not path.is_file():
+        return 0
+    try:
+        with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
+            return db.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
+    except sqlite3.Error:
+        return None
+
+
 # ---------------------------------------------------------------- legacy (Phase 2) rows
 def _vendor_settings(results_dir: Path) -> list[tuple[str, dict, dict]]:
     """(state log, data_vendors, tool_vendors) for every run recorded under ``results_dir``."""

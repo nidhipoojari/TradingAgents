@@ -226,6 +226,11 @@ def results(job):
         if summary is not None:
             st.markdown(cost_text(service.e3_cost(summary)))
         return
+    if job.status == "failed":
+        st.error(f"The analysis failed: {job.error or 'unknown error'}")
+        for line in failure_lines(job.run_id, job.failure):
+            st.markdown(line)
+        return
     if job.status != "done":
         (st.warning if job.status == "cancelled" else st.error)(job.error or job.status)
         return
@@ -289,6 +294,29 @@ def _risk(state):
         with col:
             st.subheader(title)
             st.markdown(debate.get(key) or "_None._")
+
+
+def failure_lines(run_id: str, failure: dict | None) -> list[str]:
+    """What a failed run used before it stopped, from its record; nothing is shown that was not reported."""
+    lines = [f"Run ID {run_id}."]
+    if not failure:
+        return lines + ["No usage was recorded before the failure."]
+    calls = failure.get("llm_calls") or 0
+    lines.append(f"**Before it failed:** {calls} LLM call(s) ({failure.get('llm_calls_succeeded', 0)} succeeded, "
+                 f"{failure.get('llm_calls_failed', 0)} failed); {failure.get('tokens_in', 0):,} input and "
+                 f"{failure.get('tokens_out', 0):,} output tokens reported.")
+    events = failure.get("e1_fallback_events") or []
+    lines.append(f"**E1 backup-model switches:** {len(events) if events else 'none'}")
+    lines.extend(f"- {event}" for event in events)
+    e2 = failure.get("e2_cache")
+    if e2:
+        saved = f", {e2['saved_entries']} saved" if e2.get("saved_entries") is not None else ""
+        lines.append(f"**E2 cache:** {e2.get('hits', 0)} hits, {e2.get('misses', 0)} misses{saved}")
+    if failure.get("e3_cost"):
+        lines.append(cost_text(failure["e3_cost"]))
+    if failure.get("run_budget"):
+        lines.append(run_budget.describe_snapshot(failure["run_budget"]))
+    return lines
 
 
 def _e3_summary_for(run_id: str) -> dict | None:
