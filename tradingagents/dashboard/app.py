@@ -43,8 +43,6 @@ DEPTHS = {"Shallow: 1 debate round": 1, "Medium: 3 rounds": 3, "Deep: 5 rounds":
 ROUND_ENVS = (("TRADINGAGENTS_MAX_DEBATE_ROUNDS", "max_debate_rounds"),
               ("TRADINGAGENTS_MAX_RISK_ROUNDS", "max_risk_discuss_rounds"))
 
-st.set_page_config(page_title="TradingAgents", page_icon=":material/monitoring:", layout="wide")
-
 
 @st.cache_resource
 def _job_registry() -> dict:
@@ -274,6 +272,13 @@ def _risk(state):
             st.markdown(debate.get(key) or "_None._")
 
 
+def cost_text(cost: dict) -> str:
+    """The E3 cost line: a figure is labelled an estimate only when E3 could compute one."""
+    if cost["estimated_cost_usd"] is not None:
+        return f"**E3 estimated cost:** ${cost['estimated_cost_usd']:.6f} ({cost['note']})"
+    return f"**E3 estimated cost:** not available ({cost['note']})"
+
+
 def _metrics(result):
     usage = result.usage
     cols = st.columns(4)
@@ -293,8 +298,7 @@ def _metrics(result):
         except (OSError, ValueError):
             summary = None
         if summary:
-            cost = summary.get("estimated_cost_usd") or summary.get("known_usage_cost_usd")
-            st.markdown(f"**E3 estimated cost:** {f'${cost:.4f}' if cost is not None else 'not priced'}")
+            st.markdown(cost_text(service.e3_cost(summary)))
             per_agent = summary.get("per_agent") or {}
             if per_agent:
                 st.dataframe([{"agent": name, **{k: v for k, v in row.items() if k != "models"},
@@ -413,4 +417,9 @@ def main():
         results(job)
 
 
-main()
+# Streamlit runs this page as ``__main__``. Each analysis worker is a spawned process, and
+# spawn re-imports the parent's ``__main__`` file in the child as ``__mp_main__``; without
+# this guard every worker would run the whole page (broker, sessions, widgets) in bare mode.
+if __name__ == "__main__":
+    st.set_page_config(page_title="TradingAgents", page_icon=":material/monitoring:", layout="wide")
+    main()

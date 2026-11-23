@@ -148,7 +148,7 @@ def summarize(result: service.AnalysisResult, include_reports: bool = False,
                   ("llm_calls", "tool_calls", "tokens_in", "tokens_out", "tokens_total",
                    "elapsed_seconds", "e2_cache") if key in usage},
         "model_fallbacks": len(result.fallback_events),
-        "estimated_cost_usd": _e3_cost(result),
+        **_e3_cost(result),
         "note": "Research output, not financial advice. This tool never places orders.",
     }
     if include_reports:
@@ -157,16 +157,19 @@ def summarize(result: service.AnalysisResult, include_reports: bool = False,
     return answer
 
 
-def _e3_cost(result: service.AnalysisResult) -> float | None:
-    """E3's cost estimate for the run, when tracing and pricing were on."""
-    if result.e3_summary_path is None:
-        return None
+def _e3_cost(result: service.AnalysisResult) -> dict[str, Any]:
+    """E3's cost for the run (see service.e3_cost): a partial sum is never given as the estimate."""
     import json
-    try:
-        summary = json.loads(result.e3_summary_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    return summary.get("estimated_cost_usd") or summary.get("known_usage_cost_usd")
+
+    summary = None
+    if result.e3_summary_path is not None:
+        try:
+            summary = json.loads(result.e3_summary_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            summary = None
+    cost = service.e3_cost(summary)
+    return {"estimated_cost_usd": cost["estimated_cost_usd"], "cost_basis": cost["basis"],
+            "partial_cost_usd": cost["partial_cost_usd"], "cost_note": cost["note"]}
 
 
 def analyze_stock_sync(

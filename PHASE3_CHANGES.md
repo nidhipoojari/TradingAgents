@@ -107,7 +107,8 @@ TRADINGAGENTS_MAX_ORDER_NOTIONAL=1000
 **What it does.** `tradingagents-mcp` serves one MCP tool, `analyze_stock(ticker, trade_date?, analysts?,
 include_reports?)`. It returns the rating, whether it needs review, the decision, the research plan and the
 trader plan (each truncated to `TRADINGAGENTS_MCP_MAX_REPORT_CHARS`, default 4000), usage, E1 switch count
-and E3 cost. It runs through the shared service with `source="mcp"`.
+and E3 cost (`estimated_cost_usd` with `cost_basis`, `partial_cost_usd` and `cost_note`; see "E3 cost
+reporting in the dashboard and MCP" below). It runs through the shared service with `source="mcp"`.
 
 - **Read-only.** The module never imports the execution layer or Alpaca (a test checks every import,
   including those inside functions). Tool annotations: `readOnlyHint=true`, `destructiveHint=false`.
@@ -244,6 +245,8 @@ switched to the backup: 7 of the 17 E3 summaries saved under `eval/`, `consisten
 still be billed). Two fields are added: `failed_calls_without_usage` and `estimated_cost_usd_successful_calls`
 (set when every successful call is priced). Replaying the stored Phase 2 records through the new code leaves
 every existing `estimated_cost_usd` unchanged and fills the new field for all 6 runs that had failures.
+How the dashboard and MCP server report these fields is described under "E3 cost reporting in the
+dashboard and MCP" below.
 
 ### E2 vendor provenance (defect fix)
 
@@ -407,6 +410,75 @@ deep model; nothing is invented).
 `paper_orders.jsonl` (order ledgers). `tests/test_sessions.py` checks they match those files and nothing under
 `eval/`, the E2 benchmark CSVs or E3 summaries. Note that Phase 2's existing `*.log` and report rules already
 exclude parts of `eval/tracing_31` (`console.log`, `message_tool.log`, report `.md` files) from git.
+
+## Real-interface validation and fixes (2026-11-23)
+
+Both interfaces were run through their real entry points (`tradingagents-dashboard` in headless Chromium,
+`tradingagents-mcp` over stdio with a real MCP client), offline: started from an empty folder with no
+`.env` and no API keys, scripted models (a main model that always fails, so E1 switches to a priced
+backup), offline market data, a stand-in Langfuse and, for the dashboard, an in-memory paper broker that
+records any order submission. Analyses ran in the default worker-process mode, not the inline mode the
+unit tests use. This found one product bug and one cost-reporting defect, both fixed below.
+
+### Dashboard: every analysis worker ran the whole page (fixed)
+
+Streamlit runs `app.py` as `__main__`; spawn re-imports the parent's `__main__` file in each worker as
+`__mp_main__`, and `app.py` called `st.set_page_config(...)` and `main()` unconditionally. Every worker and
+warm spare therefore ran the page in bare mode: it built the Alpaca broker from the environment, opened the
+session store and rendered widgets into nothing, logging about 100 Streamlit warnings each (218 in one short
+session). The unit tests did not see it because `tests/conftest.py` runs analyses inline. **Fix:** both
+calls are now under `if __name__ == "__main__":` (Streamlit and AppTest still run the page; workers only
+define it). `tests/test_dashboard_logic.py` loads the page as `__mp_main__` and requires that no page code
+runs (it fails on the previous code). After the fix: 0 bare-mode warnings.
+
+### E3 cost reporting in the dashboard and MCP (fixed)
+
+Both interfaces showed `estimated_cost_usd or known_usage_cost_usd`. After an E1 fallback the strict field is
+`null`, so they showed `known_usage_cost_usd`, which sums only the calls that could be priced: with an
+unpriced model it is a partial figure, and it was labelled as the estimate (for a partly priced test run,
+$0.0012 shown as the cost). Both now use one rule, `service.e3_cost()`:
+
+| Run | Reported estimate | `basis` |
+| --- | --- | --- |
+| every call priced and reported tokens | `estimated_cost_usd` | `all_calls` |
+| every successful call priced; only failed calls without tokens (E1 switches) left out | `estimated_cost_usd_successful_calls`, with a note that those calls are excluded and may still be billed | `successful_calls` |
+| some successful call unpriced or without tokens (partially priced or unpriced) | none; any priced subtotal is `partial_cost_usd`, labelled a lower bound, not the cost | `incomplete` |
+| E3 tracing off (or its summary unreadable) | none | `unavailable` |
+
+The dashboard prints the estimate with its note, or "not available" with the reason. The MCP answer keeps
+`estimated_cost_usd` (now `null` unless an estimate exists) and adds `cost_basis`, `partial_cost_usd` and
+`cost_note`. The E3 summary fields themselves are unchanged. `tests/test_e3_cost_reporting.py` (13 tests)
+builds real E3 summaries for every case (including a zero-cost run and a Phase 2 summary without the newer
+field) and checks the rule, the dashboard text and the MCP answer.
+
+### Test fakes on Python 3.14 (fixed)
+
+`tests/worker_fakes.py` imported `Runnable` inside a function but annotated the scripted model's
+`bind_tools` with `-> Runnable`. E1 with a backup model calls `with_fallbacks(...).bind_tools(...)`, which
+evaluates that annotation; Python 3.14 resolves it in the module's globals, so it raised `NameError`. The
+worker tests never set a backup, so they did not reach it. The import is now at module level, and
+`tests/test_worker.py` binds tools through a fallback pair (it fails on the previous file). Product code
+was not affected.
+
+### Results
+
+| Interface | Verified through the real interface |
+| --- | --- |
+| Dashboard (Streamlit, headless Chromium) | page loads with no console or page errors, no failed requests and no request to any host other than 127.0.0.1; sidebar shows models, E1 backups, E2 on, E3 on and the $1,000 cap; sign-in refuses a wrong password; an analysis completes through the worker with all report tabs; Run metrics shows the E1 switches (15), E2 hit rate (cold, then 100% warm) and the E3 cost with its basis ("not available" with an unpriced backup); trade panel: quantity starts at 0, Submit stays disabled until valid, an over-cap order shows the backend's limit message, changing the order clears the approval, an old analysis date needs an extra acknowledgement, a wrong step-up password is refused with nothing reaching the broker; a second browser is not signed in, sees none of the first one's results and cannot approve; a mid-run cancel is reported and recorded as `cancelled`, and the form works again; stopping the server leaves no worker processes |
+| MCP (stdio, FastMCP client) | one tool, `analyze_stock`; `ticker` required; read-only, non-destructive; no resources or prompts; a call returns rating, run ID, `source: mcp`, usage with E2 counters, fallback count and the cost with its basis (`successful_calls`, or `incomplete` with an unpriced backup); reports only on request; progress notifications; empty, path-like, future, malformed, unknown-analyst, wrong-type, missing and extra arguments are refused without internal details and the server keeps working; a second call during a run is refused as busy; a call cancelled after the analysis started frees the server and is recorded as `cancelled`; separate sessions get separate servers and results; worker output goes to stderr, never the protocol stream; only the MCP memory log is written; no server or worker process remains after a client disconnects; no order was submitted |
+
+A run cancelled before it starts (for example while waiting for a fresh worker) leaves no E3 summary: the
+service checks for a cancel before it creates the E3 session, and such a run made no model calls.
+
+**Observed limitation (cause not confirmed):** one cold worker start took about 28 s before the analysis
+began; other cold starts in the same sessions took about 2-7 s, and a bare interpreter start with the test
+fakes takes about 2.2 s. It did not recur in later restarts. Possible contributors are recompiling edited
+modules or a cold file cache under WSL, but neither was confirmed.
+
+**Limits of this validation:** scripted models and data (real latency and report content not exercised); a
+fake paper broker, and the only Submit click used a wrong step-up password; headless Chromium on Playwright's
+Ubuntu 24.04 fallback build (Ubuntu 26.04 is not supported by Playwright 1.52); no live Gemini, Langfuse or
+Alpaca. The test harness (bootstrap, browser and MCP scripts) is not part of the repository.
 
 ## Live smoke tests
 

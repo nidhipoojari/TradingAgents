@@ -16,6 +16,10 @@ import types
 
 import pandas as pd
 
+# Module level, not inside _scripted: with_fallbacks (E1 with a backup model) evaluates the
+# ``-> Runnable`` annotation of bind_tools, and Python 3.14 resolves it in these globals.
+from langchain_core.runnables import Runnable
+
 
 def _offline_vendors() -> None:
     from langchain_core.callbacks import BaseCallbackHandler
@@ -62,7 +66,6 @@ def _models(model) -> None:
 def _scripted(**fields):
     from langchain_core.messages import AIMessage
     from langchain_core.outputs import ChatGeneration, ChatResult
-    from langchain_core.runnables import Runnable
 
     from tests.test_graph_end_to_end import ScriptedModel
 

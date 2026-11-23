@@ -379,3 +379,21 @@ def test_a_pool_closed_while_its_spare_starts_keeps_no_worker(e3_env):
     assert pool._ready is None
     assert not [c for c in mp.active_children() if c.name == "tradingagents-analysis" and c.is_alive()
                 and c.pid not in {w.process.pid for p in worker._POOLS.values() if (w := p._ready)}]
+
+
+@pytest.mark.unit
+def test_the_scripted_worker_model_binds_tools_with_an_e1_backup():
+    """E1 with a backup model calls with_fallbacks(...).bind_tools(...), which evaluates the
+    ``-> Runnable`` annotation; on Python 3.14 it must resolve in worker_fakes' globals."""
+    from langchain_core.tools import tool
+
+    from tests import worker_fakes
+
+    @tool
+    def get_stock_data(symbol: str) -> str:
+        """Prices for a symbol."""
+        return "prices"
+
+    main, backup = worker_fakes._scripted(), worker_fakes._scripted()
+    bound = main.with_fallbacks([backup]).bind_tools([get_stock_data])
+    assert {t.name for t in bound.runnable.tools} == {"get_stock_data"}

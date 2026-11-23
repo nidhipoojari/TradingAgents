@@ -205,3 +205,27 @@ def test_the_page_renders_without_an_alpaca_account(monkeypatch):
     assert "Sign in" in [b.label for b in page.sidebar.button]
     # No paper account configured: the page says so instead of failing.
     assert any("ALPACA_API_KEY" in w.value for w in page.sidebar.warning)
+
+
+@pytest.mark.unit
+def test_a_spawned_worker_re_importing_the_page_runs_none_of_it(monkeypatch):
+    """Streamlit runs app.py as __main__; spawn re-imports that file in each worker as __mp_main__.
+
+    The re-import must define the page without running it: no page config, no widgets, no broker.
+    """
+    import runpy
+    from pathlib import Path
+
+    import streamlit as st
+
+    import tradingagents.dashboard as dashboard
+    from tradingagents.execution import alpaca_paper
+
+    calls = []
+    monkeypatch.setattr(st, "set_page_config", lambda *a, **k: calls.append("set_page_config"))
+    monkeypatch.setattr(st, "title", lambda *a, **k: calls.append("title"))
+    monkeypatch.setattr(alpaca_paper.AlpacaPaperBroker, "from_env",
+                        classmethod(lambda cls, **k: calls.append("broker") or None))
+    page = Path(dashboard.__file__).with_name("app.py")
+    module = runpy.run_path(str(page), run_name="__mp_main__")
+    assert calls == [] and callable(module["main"])

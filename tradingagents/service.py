@@ -172,6 +172,42 @@ def new_run_id() -> str:
     return f"{datetime.now():%Y%m%d-%H%M%S}-{uuid4().hex[:8]}"
 
 
+def e3_cost(summary: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A run's E3 cost as the dashboard and MCP report it; a partial sum is never the estimate.
+
+    ``basis`` says what ``estimated_cost_usd`` covers:
+
+    - ``all_calls``: every LLM call was priced and reported its tokens (E3 ``estimated_cost_usd``).
+    - ``successful_calls``: every successful call was priced and reported its tokens; only failed
+      calls that reported no tokens (an E1 switch to the backup) are left out
+      (E3 ``estimated_cost_usd_successful_calls``).
+    - ``incomplete``: some successful call is unpriced or reported no tokens. ``estimated_cost_usd``
+      is None; ``partial_cost_usd`` is the sum over calls that could be priced, a lower bound only.
+    - ``unavailable``: no E3 summary (tracing off, or the summary could not be read).
+    """
+    if not summary:
+        return {"estimated_cost_usd": None, "basis": "unavailable", "partial_cost_usd": None,
+                "note": "no E3 summary for this run (tracing off or the summary could not be read)"}
+    strict = summary.get("estimated_cost_usd")
+    if strict is not None:
+        return {"estimated_cost_usd": strict, "basis": "all_calls", "partial_cost_usd": None,
+                "note": "estimate covers every LLM call"}
+    successful = summary.get("estimated_cost_usd_successful_calls")
+    if successful is not None:
+        failed = summary.get("failed_calls_without_usage") or 0
+        return {"estimated_cost_usd": successful, "basis": "successful_calls", "partial_cost_usd": None,
+                "note": f"estimate covers every successful LLM call; {failed} failed call(s) reported "
+                        "no tokens and are not included (a failed call can still be billed)"}
+    partial = summary.get("known_usage_cost_usd")
+    unpriced = summary.get("unpriced_llm_calls") or 0
+    return {"estimated_cost_usd": None, "basis": "incomplete", "partial_cost_usd": partial,
+            "note": "no complete estimate: "
+                    + (f"{unpriced} call(s) used a model with no price in E3_PRICING_JSON or reported no tokens"
+                       if unpriced else "some calls reported no token usage")
+                    + (f"; the priced calls alone come to ${partial:.6f} (a lower bound, not the cost)"
+                       if partial is not None else "")}
+
+
 def config_for_source(source: str, base: Mapping[str, Any] | None = None) -> dict:
     """The run config for an interface: the configured defaults, with MCP runs on a log of their own.
 
