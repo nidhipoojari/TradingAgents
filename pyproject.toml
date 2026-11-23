@@ -58,6 +58,7 @@ bedrock = [
 [project.scripts]
 tradingagents = "cli.main:app"
 tradingagents-dashboard = "tradingagents.dashboard.launch:main"
+tradingagents-mcp = "tradingagents.mcp_server:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "tradingagents.__version__"}
