@@ -27,6 +27,8 @@ def _blank_settings_overlay():
 
 
 _blank_settings_overlay()
+# The suite runs analyses in-process; tests of the worker process install offline fakes in the child.
+os.environ["TRADINGAGENTS_ANALYSIS_WORKER"] = "inline"
 
 
 def _own_file_locations():
