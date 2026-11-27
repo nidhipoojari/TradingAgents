@@ -82,6 +82,23 @@ run used all four analysts with E2 off.
 6. **E3's raw `cost_note` asked for model prices** when the actual cause was a failed call with no usage. It now
    names the cause. Phase 2's fields are unchanged, and no token counts are invented.
 
+## Token optimisation: risk-debate prompts (2026-11-27, offline-measured)
+
+- **The problem:** each risk debator stored its argument in both `history` and `current_<speaker>_response`. So
+  the Conservative analyst received the Aggressive argument twice, and the Neutral analyst received both twice.
+- **The change:** the three risk debators now use the Bull/Bear rule from Phase 2, through one shared helper
+  (`context.latest_argument_unless_in_history`). An argument is replaced by "(Already included in debate history.)"
+  only when the history holds it verbatim. It is kept in full when the history is empty or incomplete, and opening
+  markers are kept. Bull and Bear use the same helper, and their prompts are byte-identical.
+- **Measured offline on the live F1 run's real text** (`results/phase3_final_eval_20261127/16_risk_dedup/`):
+  - Conservative −1,648 characters, Neutral −3,434;
+  - Bull, Bear and Aggressive unchanged;
+  - final debate states identical.
+
+  Converted to Gemini tokens with the live run's own characters-per-token ratio: about **1,285 input tokens per
+  four-analyst run** (2.5 % of 52,260), about **$0.00039** (1.1 %). This is an estimate, not a live measurement.
+- **Tests:** 15 cases in `tests/test_risk_debate_dedup.py`. Full suite: 2,113 passed, 1 skipped, 0 failed.
+
 ## Section 4.3 error cases (offline, end to end through the worker and service)
 
 - **Network:**

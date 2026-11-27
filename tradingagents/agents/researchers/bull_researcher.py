@@ -1,6 +1,7 @@
 from tradingagents.agents.context import (
     get_instrument_context_from_state,
     get_language_instruction,
+    latest_argument_unless_in_history,
     opponent_argument_or_opening,
     report_or_absent,
 )
@@ -28,11 +29,7 @@ def create_bull_researcher(llm):
             else "Asset fundamentals report (may be unavailable for crypto)"
         )
 
-        latest_argument_context = (
-            "(Already included in debate history.)"
-            if current_response.strip() in history
-            else current_response
-        )
+        latest_argument_context = latest_argument_unless_in_history(current_response, history)
 
         prompt = f"""You are a Bull Analyst advocating for investing in the {target_label}. Your task is to build a strong, evidence-based case emphasizing growth potential, competitive advantages, and positive market indicators. Leverage the provided research and data to address concerns and counter bearish arguments effectively.
 
