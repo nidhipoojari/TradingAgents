@@ -39,28 +39,138 @@ Team: Joe Defusco, Shubhan Bhat, Nidhi Poojari.
 | --- | --- | --- |
 | Phase 1 | Original project built, deployed and run | commit `92d7dd0` |
 | Phase 2 | E1 model routing + backup model, E2 market-data cache, E3 tracing + cost monitoring | commit `aa763f7` (PRs #1–#12) |
-| Phase 3 (planned) | F1 Streamlit dashboard + human-approved Alpaca paper trading, F2 MCP server | in progress |
+| Phase 3 | F1 Streamlit dashboard + human-approved Alpaca paper trading, F2 MCP server, one shared analysis service, Makefile | `main` (PRs #14–#15) |
 
-Full list of Phase 2 changes, file by file: [PHASE2_CHANGES.md](PHASE2_CHANGES.md).
+File-by-file change lists: [PHASE2_CHANGES.md](PHASE2_CHANGES.md) and [PHASE3_CHANGES.md](PHASE3_CHANGES.md).
 
-### Phase 2 enhancements
+### Quick start
 
-- **E1, model routing + backup model** (`tradingagents/e1_routing.py`): one table gives each of the 12 agents a quick or deep model. If a model call fails (rate limit, server error, unknown model), the same request goes to a backup model, so the run finishes instead of crashing. Each switch is logged to `<results_dir>/e1_fallback_log.txt`.
-- **E2, market-data cache** (`tradingagents/e2_cache.py`): past-dated answers from every data tool are saved in a local SQLite file, so repeat requests skip the download. Today's data and error answers are never cached.
-- **E3, tracing + cost monitoring** (`tradingagents/e3_tracing.py`, `tradingagents/e3_cli_hook.py`): every LLM call is traced in Langfuse with its agent, model, time, tokens and errors, and a JSON summary with an estimated cost (`e3_pricing.json`) is saved after each run.
-
-### Phase 2 setup
+You need Python 3.11 or newer, git, and a free Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
 
 ```bash
 git clone https://github.com/nidhipoojari/TradingAgents.git
 cd TradingAgents
-python3 -m venv .venv
-source .venv/bin/activate            # Windows: .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[e3]" langchain   # langfuse + langchain are only needed for E3
-cp .env.example .env                 # Windows: Copy-Item .env.example .env
+make install      # creates .venv, installs everything, creates .env from .env.example
 ```
 
-New settings in `.env` (all optional; leaving them out keeps the original behavior):
+Open `.env` and set `GOOGLE_API_KEY`. Then:
+
+| Command | What it does |
+| --- | --- |
+| `make doctor` | Checks Python, packages and `.env` (never prints key values, makes no model calls) |
+| `make cli` | Runs an analysis in the terminal |
+| `make dashboard` | Opens the F1 dashboard at http://127.0.0.1:8501 |
+| `make mcp` | Starts the F2 MCP server (stdio) |
+| `make test` | Runs the offline tests (no API keys or network needed) |
+| `make lint` | Runs Ruff |
+| `make analyze` | Writes cloc + lizard reports for the Phase 3 code to `eval/phase3/` |
+| `make docker` | Runs the CLI in Docker |
+| `make clean` | Deletes caches and build files |
+
+**Windows:** there's no `make`, so use `build.ps1` with the same names, for example `.\build.ps1 install` or `.\build.ps1 dashboard`.
+
+**Without make:** `python3 -m venv .venv`, activate it, then `python -m pip install -e ".[dashboard,mcp,e3]"` and `cp .env.example .env`.
+
+### Phase 3 features
+
+- **Shared analysis service** (`tradingagents/service.py`, `tradingagents/worker.py`): the CLI, the dashboard and the MCP server all run analyses through the same code, so E1, E2 and E3 work the same everywhere. Dashboard and MCP runs happen in a separate worker process with a time limit, a cap on model calls and a cost budget. Only one analysis runs at a time; a second request gets a "busy" message.
+- **F1, dashboard + paper trading** (`tradingagents/dashboard/`, `tradingagents/execution/`): run an analysis, follow its progress, read the reports and debates, and see the model, token, cost and cache numbers. The final rating becomes a trade proposal, and only a signed-in person can approve it.
+- **F2, MCP server** (`tradingagents/mcp_server.py`, `tradingagents/mcp_read_tools.py`): lets AI assistants such as Claude Code use TradeDesk AI through five read-only tools. No tool can approve or place an order.
+
+### Using the dashboard (F1)
+
+1. Run `make dashboard` and open http://127.0.0.1:8501 (it only listens on this computer).
+2. Pick a ticker, a date and the analysts, then start the run.
+3. When it finishes, read the reports, the debate and the run metrics.
+4. To trade, check the proposal, enter the number of shares, approve it and type your password again. Or reject it. Both choices are logged.
+
+How a rating becomes a proposal:
+
+| Rating | Proposal |
+| --- | --- |
+| Buy, Overweight | Buy (you choose the quantity) |
+| Sell, Underweight | Sell, only if the paper account holds the stock (no short selling) |
+| Hold | No order, with the reason shown |
+
+Paper trading needs Alpaca **paper** keys and a dashboard user (see the settings below). Without Alpaca keys, everything else in the dashboard still works.
+
+Safety rules:
+
+- Orders only go to Alpaca's paper endpoint (`paper=True`). A live URL or `ALPACA_PAPER=false` is refused.
+- Each order is capped at $1,000 by default (`TRADINGAGENTS_MAX_ORDER_NOTIONAL`).
+- Every order needs a signed-in user and the password again at approval time.
+- Approvals and rejections go to `approval_decisions.jsonl`, and every order attempt goes to `paper_orders.jsonl`. An order is logged before it is sent.
+
+Create a dashboard user:
+
+```bash
+python -m tradingagents.execution.identity add-user YOUR_NAME --file ~/.tradingagents/dashboard_users.json
+# then in .env: TRADINGAGENTS_DASHBOARD_USERS=/full/path/to/dashboard_users.json
+```
+
+### Using the MCP server (F2)
+
+| Tool | What it does |
+| --- | --- |
+| `analyze_stock` | Runs a new analysis (uses Gemini; limited by the MCP call and cost limits) |
+| `get_report` | Returns a saved report, or one section of it |
+| `get_run_metrics` | Returns time, tokens, cost, E1 switches and E2 cache counts for a run |
+| `list_recent_runs` | Lists recent runs (up to 50) |
+| `propose_trade` | Returns the trade proposal for a run, as information only |
+
+Connect Claude Code (run this from the project folder, so the server finds `.env`):
+
+```bash
+claude mcp add tradingagents -- "$PWD/.venv/bin/tradingagents-mcp"
+```
+
+Then type `/mcp` in Claude Code to check that `tradingagents` shows five tools. stdio is the default and recommended transport. HTTP is also available (`tradingagents-mcp --transport http`), but only on 127.0.0.1 and only with `TRADINGAGENTS_MCP_TOKEN` set.
+
+### Phase 3 settings
+
+All are optional and go in `.env`. Leaving them out keeps the defaults. `.env.example` lists every setting with a comment.
+
+| Setting | Feature | Default / example |
+| --- | --- | --- |
+| `ALPACA_API_KEY`, `ALPACA_SECRET_KEY` | F1 paper trading | from your Alpaca paper account |
+| `TRADINGAGENTS_MAX_ORDER_NOTIONAL` | F1 largest order in dollars | `1000` |
+| `TRADINGAGENTS_DASHBOARD_USERS` | F1 users file (password sign-in) | `/path/to/dashboard_users.json` |
+| `TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS`, `TRADINGAGENTS_DASHBOARD_MAX_COST_USD` | F1 per-run limits | `15`, `0.04` |
+| `TRADINGAGENTS_MCP_MAX_LLM_CALLS`, `TRADINGAGENTS_MCP_MAX_COST_USD` | F2 per-run limits | 1.5 × the expected calls, `0.04` |
+| `TRADINGAGENTS_MCP_TIMEOUT_SECONDS` | F2 time limit for `analyze_stock` | `900` |
+| `TRADINGAGENTS_MCP_TOKEN` | F2 token, needed only for HTTP | 16+ characters |
+| `E3_PRICING_JSON` | Prices for the cost limits (the dashboard and MCP need it) | `e3_pricing.json` |
+
+### Phase 3 results
+
+Phase 2 code vs Phase 3 code under the same conditions (NVDA, 2026-10-23, market analyst only, E2 on):
+
+| Metric | Phase 2 (3 runs) | Phase 3 (1 run) |
+| --- | --- | --- |
+| Run time | 26.8–30.2 s (median 29.6 s) | 27.4 s |
+| LLM calls | 10–11 | 10 |
+| Tokens | 31,341–32,793 | 32,393 |
+| Estimated cost | $0.0204–$0.0217 | $0.0213 |
+
+The new features didn't make the agent slower or more expensive.
+
+| Other Phase 3 checks | Result |
+| --- | --- |
+| Live dashboard run, NVDA, all four analysts | 31.1 s click to result, 16 calls, 59,952 tokens, about $0.034 |
+| Gemini 429 during that run | E1 opened the circuit breaker and the backup model finished the run |
+| Offline tests | 1,391 in Phase 2 → 2,114 in Phase 3 (2,113 pass, 1 skipped) |
+| Same workload through CLI, dashboard and MCP | Same rating, report, calls and tokens |
+| Risk-debate prompt fix | Each argument is now sent once: about 1,285 fewer input tokens per four-analyst run (estimated from saved prompts) |
+
+Evidence files: `results/phase3_matched_nvda_20261127/`, `results/phase3_final_eval_20261127/` (its README lists every folder), and [PHASE3_HANDOFF.md](PHASE3_HANDOFF.md).
+
+### Phase 2 enhancements
+
+- **E1, model routing + backup model** (`tradingagents/e1_routing.py`): one table gives each of the 12 agents a quick or deep model. If a model call fails (rate limit, server error, unknown model), the same request goes to a backup model, so the run finishes instead of crashing. Each switch is logged to `<results_dir>/e1_fallback_log.txt`. Phase 3 added bounded retries and a circuit breaker.
+- **E2, market-data cache** (`tradingagents/e2_cache.py`): past-dated answers from every data tool are saved in a local SQLite file, so repeat requests skip the download. Today's data and error answers are never cached.
+- **E3, tracing + cost monitoring** (`tradingagents/e3_tracing.py`, `tradingagents/e3_cli_hook.py`): every LLM call is traced in Langfuse with its agent, model, time, tokens and errors, and a JSON summary with an estimated cost (`e3_pricing.json`) is saved after each run.
+
+Phase 2 settings in `.env` (all optional; leaving them out keeps the original behavior):
 
 | Setting | Enhancement | Example |
 | --- | --- | --- |
@@ -70,19 +180,11 @@ New settings in `.env` (all optional; leaving them out keeps the original behavi
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | E3 Langfuse keys | from your Langfuse project |
 | `E3_PRICING_JSON`, `E3_RESULTS_DIR` | E3 price file and summary folder | `e3_pricing.json`, `e3_results` |
 
-Run one analysis:
+Run one analysis without prompts:
 
 ```bash
 python -m cli.main --ticker NVDA --date 2026-10-23 --analysts market --no-checkpoint --save --no-show
 ```
-
-Run the offline tests (no API key needed):
-
-```bash
-python -m pytest -q
-```
-
-On macOS/Linux, 3 tests in `tests/test_cache_writes.py` fail. They come from the original TradingAgents code, were not changed in Phase 2, and simulate Windows file locking, which doesn't work on these systems. All other tests pass.
 
 ### Phase 2 results
 
@@ -98,6 +200,12 @@ Phase 1 code vs Phase 2 code, run under the same conditions (NVDA, 2026-10-23, m
 | Data-load time, warm cache (E2) | 3.69 s | 0.003 s |
 
 Evidence files: `results/phase2/`, `eval/` (forced-failure test, Phase 1 vs Phase 2 runs, cloc and lizard reports) and the scripts in `scripts/`.
+
+### Tests
+
+`make test` (or `python -m pytest -q`) runs the offline suite. It needs no API keys or network. Install the extras first (`make install`), or the dashboard and Alpaca tests fail with `No module named 'streamlit'`.
+
+On macOS, 3 tests in `tests/test_cache_writes.py` fail. They come from the original TradingAgents code and simulate Windows file locking, which doesn't work on macOS.
 
 ## News
 

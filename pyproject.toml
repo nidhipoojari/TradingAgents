@@ -47,7 +47,7 @@ dashboard = [
     "streamlit>=1.50,<2",
     "alpaca-py>=0.40,<1",
 ]
-# F2 (Phase 3): MCP server exposing the read-only analyze_stock tool
+# F2 (Phase 3): MCP server with five read-only tools (analyze_stock, get_report, get_run_metrics, list_recent_runs, propose_trade)
 mcp = [
     "fastmcp>=4.2,<5",
 ]
