@@ -223,3 +223,68 @@ def test_dashboard_paper_order_needs_a_signed_in_user(phase2_on, monkeypatch):
     assert [e["event"] for e in entries] == ["approved", "submitted"]
     assert {(e["approved_by"], e["auth_method"], e["session_bound"]) for e in entries} == {("alice", "password", True)}
     assert not [b for b in page.button if b.label == "Submit paper order"]   # one order per run
+
+
+@pytest.mark.unit
+def test_a_completed_cli_run_record_links_its_e3_summary(phase2_on, monkeypatch, tmp_path):
+    """The CLI saves its E3 summary after the report prompts, after the service wrote the run record. Before the
+    fix the record named no summary (live CLI run 20261127-113820-f97deed2), so get_run_metrics had no cost or
+    per-agent data for any CLI run. Through the real CLI entry, E3 on, E1 backup in use."""
+    import cli.display as display
+    import cli.main as cli_main
+    from cli import run as cli_run
+    from cli.models import AnalystType
+    from tradingagents import mcp_read_tools, run_store
+
+    pricing = tmp_path / "pricing.json"
+    pricing.write_text(json.dumps({m: {"input_per_million_usd": 0.3, "output_per_million_usd": 2.5}
+                                   for m in ("main-model", "backup-model")}))
+    monkeypatch.setenv("E3_PRICING_JSON", str(pricing))
+    buffer = display.MessageBuffer()
+    monkeypatch.setattr(display, "message_buffer", buffer)
+    monkeypatch.setattr(cli_run, "message_buffer", buffer)
+    monkeypatch.setattr(cli_run, "create_layout", lambda: None)
+    monkeypatch.setattr(cli_run, "update_display", lambda *a, **k: None)
+    monkeypatch.setattr(cli_run, "Live", type("L", (), {"__init__": lambda s, *a, **k: None,
+                                                  "__enter__": lambda s: s, "__exit__": lambda s, *a: False}))
+    monkeypatch.setattr(cli_run, "get_user_selections", lambda flags=None: {
+        "ticker": "NVDA", "analysis_date": TRADE_DATE, "analysts": [AnalystType.MARKET], "asset_type": "stock"})
+    monkeypatch.setattr(cli_run, "_build_run_config", lambda s, c: copy.deepcopy(service.DEFAULT_CONFIG))
+    monkeypatch.setattr(cli_main.typer, "prompt", lambda *a, **k: "N")
+    writer = tmp_path / "cli_cwd"
+    writer.mkdir()
+    monkeypatch.chdir(writer)
+
+    cli_run.run_analysis()
+
+    results = Path(service.DEFAULT_CONFIG["results_dir"])
+    [record_path] = list(run_store.runs_dir(results).glob("*.json"))
+    record = json.loads(record_path.read_text())
+    assert record["source"] == "cli" and record["status"] == "completed"
+    linked = Path(record["e3_summary_path"])
+    assert linked.is_absolute() and linked.exists()
+    summary = json.loads(linked.read_text())
+    assert summary["run_id"] == record["run_id"] and summary["source"] == "cli"
+    assert summary["observed_llm_errors"] > 0                       # the main model failed; E1's backup answered
+    cost = record["usage"]["e3_cost"]
+    assert cost == service.e3_cost(summary)                         # derived from the summary; nothing invented
+    assert record["usage"]["llm_calls"] == summary["observed_llm_calls"]
+
+    # Read back by F2 from another working directory, as an MCP server would be.
+    elsewhere = tmp_path / "mcp_cwd"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    monkeypatch.setattr(mcp_read_tools, "results_dir", lambda: results)
+    metrics = mcp_read_tools.get_run_metrics(record["run_id"])
+    assert metrics["per_agent"] == summary["per_agent"]
+    assert metrics["cost"]["basis"] == cost["basis"] and metrics["cost"]["kind"] == "estimate"
+    assert metrics["cost"]["estimated_cost_usd"] == cost["estimated_cost_usd"]
+
+    # An older record (no link, or a relative link that no longer resolves) still reads, with no cost invented.
+    for legacy_path in (None, "e3_results/not-here_e3.json"):
+        legacy = {**record, "run_id": "legacy-" + str(bool(legacy_path)).lower(), "e3_summary_path": legacy_path,
+                  "usage": {k: v for k, v in record["usage"].items() if k != "e3_cost"}}
+        run_store.save(results, legacy)
+        old = mcp_read_tools.get_run_metrics(legacy["run_id"])
+        assert old["per_agent"] is None and old["cost"]["estimated_cost_usd"] is None
+        assert old["cost"]["basis"] == "unavailable"

@@ -65,8 +65,16 @@ run used all four analysts with E2 off.
    paid analysis. It is now a strict boolean.
 2. **Run records stored a relative E3 summary path.** An MCP server started from another directory silently lost
    the per-agent table and the E3 timing. The path is now absolute.
-3. **CLI run records never linked their E3 summary** (it is saved after the record), so `get_run_metrics` reported
-   their cost as unavailable. The CLI now attaches it after saving.
+3. **CLI run records never linked their E3 summary**, so `get_run_metrics` reported their cost as unavailable.
+   - **Cause (confirmed):** the service writes the record (`service.py`, `_store_run` after the run). The CLI saves
+     E3 only after its report prompts (`cli/run.py`, `defer_e3_save`, Phase 2's timing boundary), so
+     `e3.saved_path` was still `None`.
+   - **Fix:** the CLI now calls `service.attach_e3_summary` after its save. That adds the absolute path, and the
+     `e3_cost` derived from that summary, to the existing record.
+   - **Tests:** a unit test, plus an end-to-end test through the real CLI entry with E3 on and an E1 backup in use
+     (`test_a_completed_cli_run_record_links_its_e3_summary`). It reads the run back through `get_run_metrics` from
+     another working directory, and checks that older, unlinked records still read with no cost invented. The test
+     fails on the pre-fix `cli/run.py`.
 4. **The dashboard showed the E2 tile as "n/a" when E2 was off.** It now shows `off`,
    `n/a (no cacheable requests)`, or the rate with its counts.
 5. **`get_run_metrics` left out the failed-call accounting** behind the budget figure (`failed_calls`,
@@ -109,8 +117,15 @@ run used all four analysts with E2 off.
 4. **A Langfuse check of the `source:` tag through its API** (a read request; needs approval).
 5. **A paper order placed through the dashboard UI live.** Only the smoke script's order exists (placed and
    cancelled).
-6. **Sections 6.1–6.3** (cloc, lizard and hotspots): to be done **after** the merge into `main`, as agreed.
-7. **Decisions for the team:**
+6. **Repair the live CLI run's record** (`20261127-113820-f97deed2`). As of 12:05 its CLI process (started 11:35:48,
+   with the pre-fix code) is still waiting at the report prompts, so its E3 summary has **not been written yet**; it
+   is neither lost nor unlinked. Finish or Ctrl-C those prompts; E3 then saves to `e3_results/` in the project root.
+   Then run `.venv/bin/python results/phase3_final_eval_20261127/harness/repair_cli_record.py --apply`. It keeps
+   the original record as `<record>.orig-before-e3-link` and adds only the link and the cost derived from the real
+   summary. The summary's `wall_time_seconds` includes the time spent at the prompts (Phase 2's CLI boundary); use
+   `analysis_seconds` for the analysis itself.
+7. **Sections 6.1–6.3** (cloc, lizard and hotspots): to be done **after** the merge into `main`, as agreed.
+8. **Decisions for the team:**
    - the `e3` extra pins `langfuse>=3.0,<5.0`, but 5.2.0 is installed and tested; widen to `<6`?
    - add a `network` error category for LLM connection failures?
 

@@ -1,0 +1,104 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_a_completed_cli_run_record_links_its_e3_summary _____________
+
+phase2_on = PosixPath('/tmp/pytest-of-sbhat/pytest-55/test_a_completed_cli_run_recor0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7844c6b27e10>
+tmp_path = PosixPath('/tmp/pytest-of-sbhat/pytest-55/test_a_completed_cli_run_recor0')
+
+    @pytest.mark.unit
+    def test_a_completed_cli_run_record_links_its_e3_summary(phase2_on, monkeypatch, tmp_path):
+        """The CLI saves its E3 summary after the report prompts, after the service wrote the run record. Before the
+        fix the record named no summary (live CLI run 20261127-113820-f97deed2), so get_run_metrics had no cost or
+        per-agent data for any CLI run. Through the real CLI entry, E3 on, E1 backup in use."""
+        import cli.display as display
+        import cli.main as cli_main
+        from cli import run as cli_run
+        from cli.models import AnalystType
+        from tradingagents import mcp_read_tools, run_store
+    
+        pricing = tmp_path / "pricing.json"
+        pricing.write_text(json.dumps({m: {"input_per_million_usd": 0.3, "output_per_million_usd": 2.5}
+                                       for m in ("main-model", "backup-model")}))
+        monkeypatch.setenv("E3_PRICING_JSON", str(pricing))
+        buffer = display.MessageBuffer()
+        monkeypatch.setattr(display, "message_buffer", buffer)
+        monkeypatch.setattr(cli_run, "message_buffer", buffer)
+        monkeypatch.setattr(cli_run, "create_layout", lambda: None)
+        monkeypatch.setattr(cli_run, "update_display", lambda *a, **k: None)
+        monkeypatch.setattr(cli_run, "Live", type("L", (), {"__init__": lambda s, *a, **k: None,
+                                                      "__enter__": lambda s: s, "__exit__": lambda s, *a: False}))
+        monkeypatch.setattr(cli_run, "get_user_selections", lambda flags=None: {
+            "ticker": "NVDA", "analysis_date": TRADE_DATE, "analysts": [AnalystType.MARKET], "asset_type": "stock"})
+        monkeypatch.setattr(cli_run, "_build_run_config", lambda s, c: copy.deepcopy(service.DEFAULT_CONFIG))
+        monkeypatch.setattr(cli_main.typer, "prompt", lambda *a, **k: "N")
+        writer = tmp_path / "cli_cwd"
+        writer.mkdir()
+        monkeypatch.chdir(writer)
+    
+        cli_run.run_analysis()
+    
+        results = Path(service.DEFAULT_CONFIG["results_dir"])
+        [record_path] = list(run_store.runs_dir(results).glob("*.json"))
+        record = json.loads(record_path.read_text())
+        assert record["source"] == "cli" and record["status"] == "completed"
+>       linked = Path(record["e3_summary_path"])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/home/sbhat/Projects/TradingAgents-cli-startup/tests/test_phase3_integration.py:264: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <[AttributeError("'pathlib.PosixPath' object has no attribute '_raw_paths'") raised in repr()] PosixPath object at 0x7844c4c9ce40>
+args = (None,)
+
+    def __init__(self, *args):
+        paths = []
+        for arg in args:
+            if isinstance(arg, PurePath):
+                if arg.parser is not self.parser:
+                    # GH-103631: Convert separators for backwards compatibility.
+                    paths.append(arg.as_posix())
+                else:
+                    paths.extend(arg._raw_paths)
+            else:
+                try:
+                    path = os.fspath(arg)
+                except TypeError:
+                    path = arg
+                if not isinstance(path, str):
+>                   raise TypeError(
+                        "argument should be a str or an os.PathLike "
+                        "object where __fspath__ returns a str, "
+                        f"not {type(path).__name__!r}")
+E                   TypeError: argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'NoneType'
+
+/usr/lib/python3.14/pathlib/__init__.py:149: TypeError
+----------------------------- Captured stdout call -----------------------------
+
+Analysis Complete!
+
+LLM calls: 20  Tool calls: 3  Tokens: 0 in / 0 out (0 total)
+Saved to 
+/tmp/pytest-of-sbhat/pytest-55/test_a_completed_cli_run_recor0/results/NVDA/2026
+-01-09/token_usage.json
+
+Analyst wall time: Market 0.19s
+----------------------------- Captured stderr call -----------------------------
+Research Manager: provider does not support with_structured_output (); falling back to free-text generation
+Trader: provider does not support with_structured_output (); falling back to free-text generation
+Portfolio Manager: provider does not support with_structured_output (); falling back to free-text generation
+E1 fallback: 2026-11-27 12:02:41 | quick tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+E1 fallback: 2026-11-27 12:02:41 | quick tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+E1 fallback: 2026-11-27 12:02:41 | quick tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+E1 fallback: 2026-11-27 12:02:41 | quick tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+E1 fallback: 2026-11-27 12:02:41 | deep tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+E1 fallback: 2026-11-27 12:02:41 | quick tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+E1 fallback: 2026-11-27 12:02:41 | quick tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+E1 fallback: 2026-11-27 12:02:41 | quick tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+E1 fallback: 2026-11-27 12:02:41 | quick tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+E1 fallback: 2026-11-27 12:02:41 | deep tier | main-model failed (RuntimeError: 429 RESOURCE_EXHAUSTED) -> switching to backup-model
+
+E3 metrics saved: /tmp/pytest-of-sbhat/pytest-55/test_a_completed_cli_run_recor0/e3/NVDA_2026-01-09_20261127-120241-3314db05_e3.json
+=========================== short test summary info ============================
+FAILED tests/test_phase3_integration.py::test_a_completed_cli_run_record_links_its_e3_summary
+1 failed, 3 deselected in 1.60s
