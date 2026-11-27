@@ -31,6 +31,7 @@ def test_the_dashboard_starts_headless_with_paper_trading_off(live_dashboard, tm
     assert env["ALPACA_API_KEY"] == env["ALPACA_SECRET_KEY"] == ""   # blanked even when the caller has keys
     assert env["TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS"] == "15" and env["TRADINGAGENTS_DASHBOARD_MAX_COST_USD"] == "0.04"
     assert env["TRADINGAGENTS_E2_CACHE"] == "true" and env["PATH"] == "/usr/bin"
+    assert env["TRADINGAGENTS_ANALYSIS_DEADLINE_SECONDS"] == "90"      # the validation deadline
     for key in ("TRADINGAGENTS_RESULTS_DIR", "TRADINGAGENTS_CACHE_DIR", "TRADINGAGENTS_MEMORY_LOG_PATH",
                 "E3_RESULTS_DIR", "TRADINGAGENTS_DASHBOARD_USERS", "TRADINGAGENTS_AUTH_DB"):
         assert env[key].startswith(str(tmp_path)), key           # nothing lands in ~/.tradingagents

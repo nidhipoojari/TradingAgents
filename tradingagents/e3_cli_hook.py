@@ -100,9 +100,19 @@ class E3Session:
         keys = ("LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY", "LANGFUSE_BASE_URL")
         missing = [key for key in keys if not os.environ.get(key)]
         if missing:
-            raise RuntimeError("E3 enabled, but missing: " + ", ".join(missing))
-        from langfuse import get_client
-        from langfuse.langchain import CallbackHandler
+            raise RuntimeError("E3 enabled, but missing: " + ", ".join(missing)
+                               + ". Add them to .env (from your Langfuse project's API keys), or set "
+                               "E3_TRACE_ENABLED=0. `tradingagents doctor` checks the whole setup.")
+        try:
+            from langfuse import get_client
+            from langfuse.langchain import CallbackHandler
+        except ImportError as exc:
+            import sys
+
+            raise RuntimeError(
+                f"E3 enabled (E3_TRACE_ENABLED=1), but the langfuse package cannot be imported in {sys.executable} "
+                f"({exc}). Install it into this project's virtual environment: pip install \"tradingagents[e3]\" "
+                "(or check that the right venv is active), or set E3_TRACE_ENABLED=0.") from exc
         client = get_client()
         metrics = E3MetricsCallback()
         session = cls(ticker, analysis_date, [CallbackHandler(), metrics], client,
@@ -131,6 +141,12 @@ class E3Session:
         self.status = "budget_exceeded"
         self.run_error = reason[:500]
         self.run_budget = budget
+
+    def mark_deadline_exceeded(self, reason: str, deadline: dict | None = None):
+        """Phase 3: a run stopped by its deadline; distinct from a cancel, the budget or a failure."""
+        self.status = "deadline_exceeded"
+        self.run_error = reason[:500]
+        self.run_deadline = deadline
 
     def mark_failed(self, error: BaseException | str):
         """Phase 3: record a run that raised, so its summary says why."""
@@ -191,6 +207,10 @@ class E3Session:
                 summary["source"] = self.source
             if getattr(self, "run_budget", None):         # Phase 3: per-run limits and their use
                 summary["run_budget"] = self.run_budget
+            if getattr(self, "run_deadline", None):       # Phase 3: the deadline that stopped the run
+                summary["run_deadline"] = self.run_deadline
+            if getattr(self, "sdk_retries_observed", None) is not None:   # Phase 3: hidden SDK retries seen
+                summary["sdk_retries_observed"] = self.sdk_retries_observed
             # Langfuse first, bounded, so the summary can say whether the traces went out.
             if self.client is not None:
                 summary["langfuse_flush"] = bounded_flush(self.client, flush_timeout())

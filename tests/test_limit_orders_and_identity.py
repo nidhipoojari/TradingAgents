@@ -19,6 +19,16 @@ LIMITS = OrderLimits(max_notional=1000.0)
 TESTER = auth._issue("tester", "password")
 
 
+@pytest.fixture(autouse=True)
+def _fresh_sign_in():
+    """A fresh signed-in approver for every test. A password confirmation lasts 5 minutes of wall-clock
+    time (identity.STEP_UP_SECONDS), so one issued once at collection expires in a run that reaches this
+    test late, or after a system clock step (+185.7 s on 2026-11-25 failed 4 tests in test_trade_rejection).
+    Set directly, not with monkeypatch, so a test's monkeypatch.undo() cannot bring back a stale one."""
+    global TESTER
+    TESTER = auth._issue("tester", "password")
+
+
 @pytest.fixture
 def fake_requests(monkeypatch):
     sent_requests = []
@@ -39,8 +49,14 @@ def _broker(tmp_path, price=100.0, **trading):
                                 ledger=ap.OrderLedger.for_results_dir(tmp_path))
 
 
+_SIGNED_IN = object()     # "the current test's TESTER", resolved at call time (identity=None means no sign-in)
+
+
 def _approve(qty=2, price=100.0, *, order_type=OrderType.LIMIT, limit_price=100.0, rating="Buy", held=0.0,
-             market_open=True, identity=TESTER, limits=LIMITS, **extra):
+             market_open=True, identity=_SIGNED_IN, limits=LIMITS, **extra):
+    # Not a default of identity=TESTER: a default is bound once, when the module is imported, so it would
+    # keep the collection-time sign-in, whose 5-minute confirmation a late or clock-stepped run outlives.
+    identity = TESTER if identity is _SIGNED_IN else identity
     return op.approve(op.propose_order("NVDA", rating, held), qty, price, run_id=RUN, buying_power=1e6,
                       held_long_qty=held, limits=limits, confirmed=True, identity=identity,
                       order_type=order_type, limit_price=limit_price, market_open=market_open, **extra)
@@ -393,7 +409,7 @@ def test_every_limit_order_the_broker_sends_is_within_the_cap(tmp_path, fake_req
         order = op.ApprovedOrder(
             run_id=f"{RUN}-{n}", ticker="NVDA", rating="Buy", side=Side.BUY, qty=qty, reference_price=50.0,
             notional=qty * cents / 100, client_order_id=f"ta-{n}-buy",
-            approved_at=op._now().isoformat(timespec="seconds"), approved_by="tester",
+            approved_at=op._now().isoformat(timespec="seconds"), approved_mono=op._monotonic(), approved_by="tester",
             order_type=OrderType.LIMIT, limit_price=cents / 100, auth_method="password", approval="s")
         try:
             broker.submit(order, LIMITS)

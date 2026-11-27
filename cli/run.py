@@ -388,6 +388,8 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
     # If the prompts above raise, the exit hook saves it instead, as in Phase 2.
     if result.e3 is not None:
         result.e3.save()
+        # The run record was written before this save; link the summary so get_run_metrics can show its cost.
+        service.attach_e3_summary(request, result.run_id, result.e3.saved_path)
 
 
 def _yes(question: str) -> bool:

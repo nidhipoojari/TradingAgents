@@ -1,0 +1,5 @@
+analyze_stock {"analysts": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "default": null}, "include_reports": {"default": false, "type": "boolean"}, "ticker": {"type": "string"}, "trade_date": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": null}} readOnly=True destructive=False idempotent=False openWorld=True
+get_report {"run_id": {"type": "string"}, "section": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": null}} readOnly=True destructive=False idempotent=True openWorld=False
+get_run_metrics {"run_id": {"type": "string"}} readOnly=True destructive=False idempotent=True openWorld=False
+list_recent_runs {"limit": {"default": 10, "minimum": 1, "type": "integer"}} readOnly=True destructive=False idempotent=True openWorld=False
+propose_trade {"run_id": {"type": "string"}} readOnly=True destructive=False idempotent=True openWorld=False

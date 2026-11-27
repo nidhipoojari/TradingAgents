@@ -1,0 +1,28 @@
+{
+ "speed": 0.1,
+ "rows": [
+  {
+   "ticker": "NVDA",
+   "date": "2026-10-23",
+   "analysts": "market",
+   "depth": "shallow",
+   "scenario": "ok",
+   "source": "dashboard",
+   "expected_calls": 10,
+   "call_limit": 15,
+   "outcome": "completed",
+   "rating": "Overweight",
+   "seconds_scaled": 4.89,
+   "llm_calls": 10,
+   "tokens_in": 1000,
+   "tokens_out": 200,
+   "e1_backup_calls": 0,
+   "e1_breaker_skips": 0,
+   "e1_backup_failures": 0,
+   "e2_hits": 0,
+   "e2_misses": 2,
+   "budget_cost_usd": 0.0008,
+   "e3_cost_usd": null
+  }
+ ]
+}

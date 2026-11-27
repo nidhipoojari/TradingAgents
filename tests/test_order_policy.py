@@ -11,6 +11,16 @@ LIMITS = OrderLimits(max_notional=1000.0)
 TESTER = _issue("tester", "password")   # a signed-in approver
 
 
+@pytest.fixture(autouse=True)
+def _fresh_sign_in():
+    """A fresh signed-in approver for every test. A password confirmation lasts 5 minutes of wall-clock
+    time (identity.STEP_UP_SECONDS), so one issued once at collection expires in a run that reaches this
+    test late, or after a system clock step (+185.7 s on 2026-11-25 failed 4 tests in test_trade_rejection).
+    Set directly, not with monkeypatch, so a test's monkeypatch.undo() cannot bring back a stale one."""
+    global TESTER
+    TESTER = _issue("tester", "password")
+
+
 @pytest.mark.unit
 @pytest.mark.parametrize("rating, held, side", [
     ("Buy", 0, Side.BUY),

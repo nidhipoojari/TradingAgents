@@ -1,0 +1,10 @@
+{"pid": 273064, "mono": 136346.697, "event": "adopted", "elapsed": 1.737, "handoff": 1.7366542700037826}
+{"pid": 273064, "mono": 136346.699, "event": "run_analysis", "elapsed": 1.738, "cancel_set": false}
+{"pid": 273090, "mono": 136357.801, "event": "adopted", "elapsed": 5.512, "handoff": 5.5120052760175895}
+{"pid": 273090, "mono": 136357.803, "event": "run_analysis", "elapsed": 5.514, "cancel_set": false}
+{"pid": 273136, "mono": 136364.553, "event": "adopted", "elapsed": 0.0, "handoff": 0.0003143319918308407}
+{"pid": 273136, "mono": 136364.556, "event": "run_analysis", "elapsed": 0.003, "cancel_set": false}
+{"pid": 273169, "mono": 136376.201, "event": "adopted", "elapsed": 0.0, "handoff": 0.00030112999957054853}
+{"pid": 273169, "mono": 136376.203, "event": "run_analysis", "elapsed": 0.003, "cancel_set": false}
+{"pid": 273089, "mono": 136384.397, "event": "adopted", "elapsed": 0.001, "handoff": 0.0005628860089927912}
+{"pid": 273089, "mono": 136384.406, "event": "run_analysis", "elapsed": 0.011, "cancel_set": false}

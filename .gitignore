@@ -228,3 +228,6 @@ reports/
 dashboard_users*.json
 dashboard_auth.sqlite*
 paper_orders.jsonl
+
+# Optional Playwright system libraries unpacked without root (scripts/smoke/setup_playwright.sh --user-libs)
+/.playwright-libs/

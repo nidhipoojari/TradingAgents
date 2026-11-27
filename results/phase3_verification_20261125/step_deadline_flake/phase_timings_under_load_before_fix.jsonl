@@ -1,0 +1,24 @@
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124842.219, "fn": "children_at_start", "children": []}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124857.019, "fn": "take", "seconds": 14.792}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124863.436, "fn": "overdue_detected", "agent": "Market Analyst", "waited": 4.037}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124864.613, "fn": "stop", "seconds": 0.169}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124864.674, "fn": "_write_terminated_e3", "seconds": 0.001}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124864.691, "fn": "_write_partial_usage", "seconds": 0.017}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124864.692, "fn": "run_in_worker", "seconds": 22.465}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124867.764, "fn": "stop", "seconds": 0.0}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124888.447, "fn": "children_at_start", "children": []}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124897.44, "fn": "take", "seconds": 8.981}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124903.768, "fn": "overdue_detected", "agent": "Market Analyst", "waited": 4.047}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124904.837, "fn": "stop", "seconds": 0.06}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124904.856, "fn": "_write_terminated_e3", "seconds": 0.011}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124904.857, "fn": "_write_partial_usage", "seconds": 0.001}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124904.857, "fn": "run_in_worker", "seconds": 16.399}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124906.777, "fn": "stop", "seconds": 0.0}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124938.16, "fn": "children_at_start", "children": []}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124945.848, "fn": "take", "seconds": 7.672}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124952.429, "fn": "overdue_detected", "agent": "Market Analyst", "waited": 4.048}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124953.44, "fn": "stop", "seconds": 0.011}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124953.443, "fn": "_write_terminated_e3", "seconds": 0.001}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124953.445, "fn": "_write_partial_usage", "seconds": 0.002}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124953.446, "fn": "run_in_worker", "seconds": 15.269}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 124954.078, "fn": "stop", "seconds": 0.0}

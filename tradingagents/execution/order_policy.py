@@ -39,23 +39,36 @@ import hashlib
 import hmac
 import json
 import math
-import os
-import re
 import secrets
+import time
 from dataclasses import asdict, dataclass, field, replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 
 from tradingagents.execution import identity as auth
 
-BUY_RATINGS = frozenset({"Buy", "Overweight"})
-SELL_RATINGS = frozenset({"Underweight", "Sell"})
-MAX_NOTIONAL_ENV = "TRADINGAGENTS_MAX_ORDER_NOTIONAL"
-DEFAULT_MAX_NOTIONAL = 1000.0
-# Alpaca US equity symbols: letters, optionally a share class (BRK.B).
-_US_STOCK = re.compile(r"^[A-Z]{1,5}(\.[A-Z])?$")
-_CLIENT_ORDER_ID_MAX = 48   # Alpaca's limit
+# The pure proposal rules live in tradingagents.trade_rules (shared with the read-only MCP tool);
+# re-exported here so every existing caller and test is unchanged.
+from tradingagents.trade_rules import (  # noqa: F401
+    _CLIENT_ORDER_ID_MAX,
+    _US_STOCK,
+    BUY_RATINGS,
+    DEFAULT_MAX_NOTIONAL,
+    MAX_NOTIONAL_ENV,
+    PROPOSAL_ID_MAX,
+    PROPOSAL_NO_SIDE,
+    SELL_RATINGS,
+    OrderLimits,
+    OrderProposal,
+    Side,
+    client_order_id,
+    is_paper_tradable,
+    is_valid_proposal_id,
+    proposal_id,
+    propose_order,
+)
+
 # An approval is for this order, now: it lapses after a few minutes, and it is
 # signed with a key that exists only in this process, so an ApprovedOrder built
 # or edited anywhere but approve() is refused at submission.
@@ -67,9 +80,8 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-class Side(StrEnum):
-    BUY = "buy"
-    SELL = "sell"
+def _monotonic() -> float:
+    return time.monotonic()
 
 
 class OrderType(StrEnum):
@@ -91,40 +103,6 @@ class OrderRejected(ValueError):
 
 
 @dataclass(frozen=True)
-class OrderProposal:
-    """What the analysis allows, before any quantity: a side, or the reason there is none."""
-
-    ticker: str
-    rating: str
-    side: Side | None
-    reason: str
-    held_long_qty: float = 0.0
-
-    @property
-    def allowed(self) -> bool:
-        return self.side is not None
-
-
-@dataclass(frozen=True)
-class OrderLimits:
-    max_notional: float = DEFAULT_MAX_NOTIONAL
-
-    def __post_init__(self):
-        if not (math.isfinite(self.max_notional) and self.max_notional > 0):
-            raise ValueError(f"max_notional must be a positive number, got {self.max_notional!r}")
-
-    @classmethod
-    def from_env(cls) -> OrderLimits:
-        raw = (os.environ.get(MAX_NOTIONAL_ENV) or "").strip()
-        if not raw:
-            return cls()
-        try:
-            return cls(float(raw))
-        except ValueError:
-            raise ValueError(f"{MAX_NOTIONAL_ENV} must be a positive number of dollars, got {raw!r}") from None
-
-
-@dataclass(frozen=True)
 class ApprovedOrder:
     """An order a signed-in person approved after it passed every check. Only these reach the broker."""
 
@@ -142,7 +120,17 @@ class ApprovedOrder:
     limit_price: float | None = None
     auth_method: str = "none"
     session_ref: str = ""                            # hash of the approver's server-side session, if any
+    # approved_at on this process's monotonic clock (signed with the rest): a backward clock step cannot make
+    # an approval look younger. Comparable only here, where the approval key also lives.
+    approved_mono: float = 0.0
+    # The approval decision's ID (decision_log, ``dec-<32 hex>``), signed with the rest, so the order's ledger
+    # lines name the decision that approved it. Empty when no decision log is kept (CLI and library use).
+    decision_id: str = ""
     approval: str = field(default="", repr=False)   # signature set by approve()
+
+    @property
+    def proposal_id(self) -> str:
+        return proposal_id(self.run_id, self.side)
 
 
 def _signature(order: ApprovedOrder) -> str:
@@ -172,52 +160,17 @@ def verify_approval(order: ApprovedOrder) -> list[str]:
         approved_at = datetime.fromisoformat(order.approved_at)
     except (TypeError, ValueError):
         return [*problems, "The approval time cannot be read; approve the order again."]
-    age = _now() - approved_at
-    if age > timedelta(seconds=APPROVAL_TTL_SECONDS):
-        problems.append(f"The approval is {age.total_seconds():.0f}s old, past the "
+    # The older of the two ages counts, so a clock step in either direction can expire an approval early but
+    # never keep it valid longer than APPROVAL_TTL_SECONDS of real time.
+    wall_age = (_now() - approved_at).total_seconds()
+    mono_age = _monotonic() - order.approved_mono
+    age = max(wall_age, mono_age)
+    if age > APPROVAL_TTL_SECONDS:
+        problems.append(f"The approval is {age:.0f}s old, past the "
                         f"{APPROVAL_TTL_SECONDS}s limit; check the order and approve it again.")
-    elif age < timedelta(seconds=-5):
+    elif wall_age < -5 or mono_age < -5:
         problems.append("The approval time is in the future; approve the order again.")
     return problems
-
-
-def is_paper_tradable(ticker: str, asset_type: str = "stock") -> bool:
-    return asset_type == "stock" and bool(_US_STOCK.fullmatch(ticker or ""))
-
-
-def propose_order(ticker: str, rating: str, held_long_qty: float,
-                  asset_type: str = "stock") -> OrderProposal:
-    """The side a rating allows given the current long position, or why there is none.
-
-    ``held_long_qty`` is the long position only; a short or no position is 0.
-    """
-    held = held_long_qty if held_long_qty and held_long_qty > 0 else 0.0
-    if not is_paper_tradable(ticker, asset_type):
-        return OrderProposal(ticker, rating, None,
-                             f"{ticker} is not a US-listed stock; paper trading here covers those only.", held)
-    if rating in BUY_RATINGS:
-        return OrderProposal(ticker, rating, Side.BUY,
-                             f"{rating}: a buy may be placed, sized by you.", held)
-    if rating in SELL_RATINGS:
-        if held <= 0:
-            return OrderProposal(
-                ticker, rating, None,
-                f"{rating}, but the paper account holds no long position in {ticker}. "
-                "Selling would open a short position, which is not supported.", held)
-        return OrderProposal(ticker, rating, Side.SELL,
-                             f"{rating}: you may reduce or close the {held:g}-share position.", held)
-    if rating == "Hold":
-        return OrderProposal(ticker, rating, None, "Hold: no order is created.", held)
-    return OrderProposal(ticker, rating, None,
-                         f"The decision has no tradeable rating ({rating}); review it before acting.", held)
-
-
-def client_order_id(run_id: str, side: Side) -> str:
-    """One ID per analysis run and side: the broker refuses a second order with it."""
-    value = f"ta-{run_id}-{Side(side).value}"
-    if len(value) > _CLIENT_ORDER_ID_MAX or not re.fullmatch(r"[A-Za-z0-9._-]+", value):
-        raise ValueError(f"run_id {run_id!r} does not make a valid client order ID")
-    return value
 
 
 def _is_price(value) -> bool:
@@ -299,7 +252,7 @@ def approve(proposal: OrderProposal, qty, price, *, run_id: str, buying_power: f
             identity: auth.Identity | None = None, approved_by: str | None = None,
             order_type: OrderType | str = OrderType.LIMIT, limit_price: float | None = None,
             market_open: bool | None = None, trade_date: str | None = None, today: str | None = None,
-            stale_acknowledged: bool = False) -> ApprovedOrder:
+            stale_acknowledged: bool = False, decision_id: str = "") -> ApprovedOrder:
     """Turn a person's checked order into a signed ApprovedOrder, or raise OrderRejected.
 
     ``confirmed`` must be literally True: the person ticked the approval for this
@@ -338,9 +291,9 @@ def approve(proposal: OrderProposal, qty, price, *, run_id: str, buying_power: f
         run_id=run_id, ticker=proposal.ticker, rating=proposal.rating, side=proposal.side,
         qty=whole, reference_price=float(price) if _is_price(price) else 0.0,
         notional=round(whole * worst, 2), client_order_id=client_order_id(run_id, proposal.side),
-        approved_at=_now().isoformat(timespec="seconds"), approved_by=who,
+        approved_at=_now().isoformat(timespec="seconds"), approved_mono=_monotonic(), approved_by=who,
         order_type=kind, limit_price=float(limit_price),
-        auth_method=method, session_ref=session,
+        auth_method=method, session_ref=session, decision_id=decision_id or "",
     )
     return replace(order, approval=_signature(order))
 

@@ -13,21 +13,26 @@ is sent, ``submit`` checks, under a lock held across threads and processes:
 3. the order once more against fresh buying power, position and price, since
    they may have moved between approval and submission.
 
+Each ledger line (Phase 3) also carries its own ``event_id`` (``evt-<32 hex>``), the ``proposal_id`` it acts on
+and the ``approval_decision_id`` of the approval that sent it (decision_log). ``client_order_id`` keeps its
+meaning: one order per run and side, shared by that order's approved, submitted and failed lines. Lines written
+before Phase 3 are never rewritten; ``entries()`` gives each a stable ``evt-legacy-<hash>`` ID.
+
 Keys come from ALPACA_API_KEY / ALPACA_SECRET_KEY (or Alpaca's own
 APCA_API_KEY_ID / APCA_API_SECRET_KEY). Use paper-account keys.
 """
 
 from __future__ import annotations
 
-import json
 import math
 import os
 import threading
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from tradingagents import audit_log
 from tradingagents.dataflows.files import locked
 from tradingagents.execution.order_policy import (
     MARKET_ORDERS_DISABLED,
@@ -50,12 +55,22 @@ SECRET_ENVS = ("ALPACA_SECRET_KEY", "APCA_API_SECRET_KEY")
 PAPER_FLAG_ENVS = ("ALPACA_PAPER",)
 BASE_URL_ENVS = ("ALPACA_BASE_URL", "APCA_API_BASE_URL")
 LEDGER_NAME = "paper_orders.jsonl"
+LEDGER_SCHEMA = 2             # 2: event_id, proposal_id, approval_decision_id; lines without "schema" are 1
+EVENT_ID_PREFIX = "evt"
 
 _SUBMIT_LOCK = threading.Lock()
 
 
 class BrokerError(RuntimeError):
     """The paper account could not be used or refused the request."""
+
+
+class ApprovalNotRecorded(BrokerError):
+    """The approval decision could not be written; nothing was sent."""
+
+
+class SubmissionFailed(BrokerError):
+    """Alpaca did not accept a request that passed every check (recorded in the ledger as ``failed``)."""
 
 
 class BrokerNotConfigured(BrokerError):
@@ -138,26 +153,21 @@ class OrderLedger:
         return cls(Path(results_dir) / LEDGER_NAME)
 
     def entries(self) -> list[dict]:
-        try:
-            lines = self.path.read_text(encoding="utf-8").splitlines()
-        except FileNotFoundError:
-            return []
-        out = []
-        for line in lines:
-            try:
-                out.append(json.loads(line))
-            except ValueError:
-                continue
-        return out
+        """Every ledger line, oldest first; a line from before Phase 3 gets a derived ``event_id``."""
+        return [entry if "event_id" in entry else
+                {**entry, "event_id": audit_log.legacy_id(EVENT_ID_PREFIX, line), "legacy": True}
+                for line, entry in audit_log.read_lines(self.path)]
+
+    def for_order(self, client_order_id: str) -> list[dict]:
+        return [e for e in self.entries() if e.get("client_order_id") == client_order_id]
 
     def find(self, client_order_id: str) -> dict | None:
         return next((e for e in self.entries()
                      if e.get("client_order_id") == client_order_id and e.get("order_id")), None)
 
     def append(self, entry: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(entry, sort_keys=True) + "\n")
+        """One whole line. Called under ``lock()`` (AlpacaPaperBroker.submit holds it)."""
+        audit_log.append(self.path, entry, lock=False)
 
     def lock(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -289,7 +299,7 @@ class AlpacaPaperBroker:
             raise BrokerError(f"could not check for an earlier order: {type(exc).__name__}: {exc}") from None
 
     def submit(self, order: ApprovedOrder, limits: OrderLimits | None = None, *,
-               source: str = "dashboard") -> OrderReceipt:
+               source: str = "dashboard", on_approved=None) -> OrderReceipt:
         """Send one approved order to the paper account, at most once per client order ID.
 
         Every safeguard runs here, immediately before sending, whatever a caller
@@ -302,6 +312,10 @@ class AlpacaPaperBroker:
         - the quantity against fresh buying power, the fresh long position and
           the fresh latest price (no price, no order).
         The approval is written to the ledger before the order is sent.
+
+        ``on_approved(order)`` (the dashboard's approval-decision log) runs under the ledger lock once every
+        check has passed, immediately before the ledger's ``approved`` line: a repeat submission never reaches
+        it, and if it raises, nothing is written to the ledger and nothing is sent (ApprovalNotRecorded).
         """
         if not isinstance(order, ApprovedOrder):
             raise TypeError("only an ApprovedOrder (see order_policy.approve) can be submitted")
@@ -324,7 +338,8 @@ class AlpacaPaperBroker:
             existing = self._existing(order.client_order_id)
             if existing is not None:
                 receipt = self._receipt(existing, order, duplicate=True)
-                self._record("submitted", order, source, effective, receipt=receipt)
+                # Placed earlier, missing from this ledger: this approval sent nothing, so it names no decision.
+                self._record("submitted", replace(order, decision_id=""), source, effective, receipt=receipt)
                 return receipt
 
             # Fresh numbers: buying power, position, price and the market clock may
@@ -354,13 +369,19 @@ class AlpacaPaperBroker:
                        "checked_long_qty": held, "checked_notional": round(order.qty * worst, 2),
                        "order_type": order.order_type.value, "limit_price": order.limit_price,
                        "market_open": clock.is_open, "next_open": clock.next_open}
+            if on_approved is not None:
+                try:
+                    on_approved(order)
+                except Exception as exc:  # noqa: BLE001 - an approval that is not on record sends nothing
+                    raise ApprovalNotRecorded(f"the approval could not be recorded ({type(exc).__name__}); "
+                                              "nothing was sent") from None
             self._record("approved", order, source, effective, **checked)
             try:
                 placed = self.trading.submit_order(order_data=request)
             except Exception as exc:  # noqa: BLE001
                 error = f"{type(exc).__name__}: {exc}"
                 self._record("failed", order, source, effective, error=error[:500], **checked)
-                raise BrokerError(f"Alpaca did not accept the order: {error}") from None
+                raise SubmissionFailed(f"Alpaca did not accept the order: {error}") from None
             receipt = self._receipt(placed, order, duplicate=False)
             self._record("submitted", order, source, effective, receipt=receipt, **checked)
             return receipt
@@ -383,6 +404,10 @@ class AlpacaPaperBroker:
                 receipt: OrderReceipt | None = None, error: str | None = None, **checked) -> None:
         """One audit line: ``approved`` (before sending), then ``submitted`` or ``failed``."""
         self.ledger.append({
+            "schema": LEDGER_SCHEMA,
+            "event_id": audit_log.new_id(EVENT_ID_PREFIX),
+            "proposal_id": order.proposal_id,
+            "approval_decision_id": order.decision_id or None,
             "event": event,
             "recorded_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "source": source,

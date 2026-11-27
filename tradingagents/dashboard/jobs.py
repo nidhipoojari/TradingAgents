@@ -10,7 +10,6 @@ without it.
 
 from __future__ import annotations
 
-import re
 import threading
 import time
 from collections import deque
@@ -26,15 +25,20 @@ MAX_LOG_LINES = 200
 class AnalysisJob:
     request: service.AnalysisRequest
     run_id: str
-    status: str = "running"            # running | done | failed | cancelled | budget_exceeded
+    status: str = "running"            # running | done | failed | cancelled | budget_exceeded | deadline_exceeded
     progress: tuple[int, int, str] = (0, 0, "Starting")
     result: service.AnalysisResult | None = None
     error: str | None = None
-    started_at: float = field(default_factory=time.time)
+    started_at: float = field(default_factory=time.time)        # wall clock, for display
     finished_at: float | None = None
+    started_mono: float = field(default_factory=time.monotonic)  # elapsed time ignores clock steps
+    finished_mono: float | None = None
     cancel: threading.Event = field(default_factory=threading.Event)
     budget: dict | None = None         # the per-run limit's accounting when it stopped the run
     failure: dict | None = None        # a failed run's record (calls, tokens, cost basis, E1/E2), if any
+    category: str | None = None        # service.error_category of a failed run
+    hint: str | None = None            # what to do about it (service.failure_hint), when there is advice
+    deadline: dict | None = None       # the deadline's accounting when it stopped the run
     _log: deque = field(default_factory=lambda: deque(maxlen=MAX_LOG_LINES))
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -44,7 +48,7 @@ class AnalysisJob:
 
     @property
     def elapsed(self) -> float:
-        return (self.finished_at or time.time()) - self.started_at
+        return (self.finished_mono or time.monotonic()) - self.started_mono
 
     def log(self) -> list[str]:
         with self._lock:
@@ -82,18 +86,10 @@ class AnalysisJob:
         with self._lock:
             self.status, self.result, self.error = status, result, error
             self.finished_at = time.time()
+            self.finished_mono = time.monotonic()
             if result is not None:
                 done = len(self.request.analysts) + len(service.DECISION_STEPS)
                 self.progress = (done, done, "Done")
-
-
-def _described(exc: BaseException) -> str:
-    """The error as a person should read it. The worker re-raises a child's error as
-    RuntimeError("<original type>: <message>"); keep that original type instead of prefixing another."""
-    text = str(exc)
-    if type(exc) is RuntimeError and re.match(r"^[A-Za-z_][\w.]*(Error|Exception|Exit): ", text):
-        return text
-    return f"{type(exc).__name__}: {text}"
 
 
 def _text(content) -> str:
@@ -126,6 +122,11 @@ def start_job(request: service.AnalysisRequest, *,
     def work():
         try:
             result = run(request, on_event=job._event, cancel=job.cancel)
+        except service.AnalysisDeadlineExceeded as exc:
+            # Stopped by its deadline: reported apart from a cancel, the budget or a provider failure.
+            job.deadline = exc.deadline
+            job.failure = getattr(exc, "analysis_failure", None)
+            job._finish("deadline_exceeded", error=str(exc))
         except service.AnalysisBudgetExceeded as exc:
             # Stopped by the per-run limit: reported apart from a cancel by the person or a failure.
             job.budget = exc.budget or job.budget
@@ -135,7 +136,9 @@ def start_job(request: service.AnalysisRequest, *,
             job._finish("cancelled", error=str(exc))
         except Exception as exc:  # noqa: BLE001 - shown to the person, not swallowed
             job.failure = getattr(exc, "analysis_failure", None)
-            job._finish("failed", error=service.sanitize_error(_described(exc)))
+            job.category = service.error_category(exc)
+            job.hint = service.failure_hint(exc)
+            job._finish("failed", error=service.sanitize_error(service.describe_error(exc)))
         else:
             job._finish("done", result=result)
 

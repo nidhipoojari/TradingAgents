@@ -1,0 +1,15 @@
+{"label": "phase2", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1307, "min": 0.1097, "max": 0.2126, "p95": 0.1979, "llm_calls": [10]}
+{"label": "phase2", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "off", "n": 30, "median": 0.117, "min": 0.101, "max": 0.1703, "p95": 0.1657, "llm_calls": [10]}
+{"label": "current", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1245, "min": 0.1097, "max": 0.1756, "p95": 0.1743, "llm_calls": [10]}
+{"label": "current", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "off", "n": 30, "median": 0.1222, "min": 0.1069, "max": 0.1836, "p95": 0.1742, "llm_calls": [10]}
+{"label": "current", "mode": "service", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1268, "min": 0.107, "max": 0.1921, "p95": 0.1754, "llm_calls": [10]}
+{"label": "current", "mode": "worker", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1803, "min": 0.1442, "max": 0.3457, "p95": 0.2773, "llm_calls": [10]}
+{"label": "phase2", "mode": "graph", "profile": "p2_01_NVDA", "e2": "cold", "e3": "on", "n": 5, "median": 21.9269, "min": 21.8615, "max": 21.9526, "p95": 21.9526, "llm_calls": [10]}
+{"label": "current", "mode": "graph", "profile": "p2_01_NVDA", "e2": "cold", "e3": "on", "n": 5, "median": 21.947, "min": 21.9186, "max": 21.9613, "p95": 21.9613, "llm_calls": [10]}
+{"label": "current", "mode": "service", "profile": "p2_01_NVDA", "e2": "cold", "e3": "on", "n": 5, "median": 21.9958, "min": 21.8906, "max": 22.1023, "p95": 22.1023, "llm_calls": [10]}
+{"label": "committed", "mode": "worker", "profile": "p2_01_NVDA", "e2": "cold", "e3": "on", "n": 5, "median": 22.0407, "min": 21.9374, "max": 22.0732, "p95": 22.0732, "llm_calls": [10]}
+{"label": "current", "mode": "worker", "profile": "p2_01_NVDA", "e2": "cold", "e3": "on", "n": 5, "median": 21.9607, "min": 21.9537, "max": 22.0516, "p95": 22.0516, "llm_calls": [10]}
+{"label": "phase2", "mode": "graph", "profile": "p2_03_NVDA", "e2": "warm", "e3": "on", "n": 5, "median": 25.9177, "min": 25.8766, "max": 26.0029, "p95": 26.0029, "llm_calls": [10]}
+{"label": "current", "mode": "graph", "profile": "p2_03_NVDA", "e2": "warm", "e3": "on", "n": 5, "median": 25.9205, "min": 25.907, "max": 27.5683, "p95": 27.5683, "llm_calls": [10]}
+{"label": "committed", "mode": "worker", "profile": "p2_03_NVDA", "e2": "warm", "e3": "on", "n": 5, "median": 25.9148, "min": 25.8674, "max": 25.9727, "p95": 25.9727, "llm_calls": [10]}
+{"label": "current", "mode": "worker", "profile": "p2_03_NVDA", "e2": "warm", "e3": "on", "n": 5, "median": 25.9414, "min": 25.8807, "max": 25.9646, "p95": 25.9646, "llm_calls": [10]}

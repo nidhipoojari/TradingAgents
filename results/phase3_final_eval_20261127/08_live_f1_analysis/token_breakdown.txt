@@ -1,0 +1,20 @@
+agent                  P2 calls P2 in(mean)  P2 out | P3 calls  P3 in P3 out | d_in
+Market Analyst              2.0        7022    1591 |        2   6583   1483 |   -439
+Bull Researcher             1.0        1885     679 |        1   4284    508 |  +2399
+Bear Researcher             1.3        2571     766 |        1   4799    584 |  +2228
+Research Manager            1.0        1878     344 |        1   1525    268 |   -353
+Trader                      1.0        2230     169 |        1   2047    148 |   -183
+Aggressive Analyst          1.0        2183     388 |        1   4561    400 |  +2378
+Conservative Analyst        1.0        2931     435 |        1   5332    393 |  +2401
+Neutral Analyst             1.0        3765     476 |        1   6082    617 |  +2317
+Portfolio Manager           1.0        2269     352 |        2   2283    349 |    +14
+Fundamentals Analyst        0.0           0       0 |        2   9865   1643 |  +9865
+News Analyst                0.0           0       0 |        2   3688    898 |  +3688
+Sentiment Analyst           0.0           0       0 |        1   1211    401 |  +1211
+
+Phase 2 mean (3 NVDA runs): calls 10.3, in 26734, out 5199, cost $0.020703
+Phase 3 live, same 9 agents: calls 11, in 37496, out 4750, cost $0.022661
+Phase 3 live, 3 extra analysts: calls 5, in 14764, out 2942, cost $0.011784
+Phase 3 live total: calls 16, in 52260, out 7692, cost $0.034445
+
+Market Analyst calls P2 01: [(1853, 140), (5169, 1391)]  P3: [(1853, 140), (4730, 1343)]

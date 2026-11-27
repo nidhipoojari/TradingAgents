@@ -72,6 +72,7 @@ DEFAULT_GRACE_SECONDS = 10.0
 DEFAULT_READY_SECONDS = 60.0
 DEFAULT_HEARTBEAT_SECONDS = 30.0
 HEARTBEAT_INTERVAL = 1.0
+STEP_DEADLINE_SLACK = 2.0          # the parent acts on a step deadline this long after the child's guard would
 _CTX = mp.get_context("spawn")      # never fork a threaded server process
 _SHUTTING_DOWN = threading.Event()
 
@@ -152,6 +153,8 @@ def _child(conn, setup: str | None) -> None:
     if message[0] != "run":
         return
     request, environment = message[1], message[2]
+    if request.deadline is not None:        # the parent sent its elapsed time; count on this process's clock
+        request = replace(request, deadline=request.deadline.adopted())
     # A warm worker was spawned before this request: adopt the parent's environment as
     # it is now (E3/Langfuse switches, keys, paths), so it matches a freshly spawned one.
     os.environ.clear()
@@ -159,9 +162,37 @@ def _child(conn, setup: str | None) -> None:
     cancel = threading.Event()
     finished = threading.Event()
 
+    # Checkpoints: this run's E2 counters and tool calls, sent after every tool call and with every
+    # heartbeat, so a parent whose worker dies or hangs still knows the latest confirmed counts.
+    from tradingagents import e2_cache
+
+    config = request.config or {}
+    e2_on = bool(config.get("e2_cache_enabled", False) or e2_cache.is_enabled())
+    e2_baseline = e2_cache.stats_snapshot()
+    rows_baseline = e2_cache.row_count(config.get("data_cache_dir")) if e2_on else None
+    tools = {"started": 0, "finished": 0, "failed": 0, "seq": 0}
+    tools_lock = threading.Lock()
+
+    def checkpoint():
+        with tools_lock:
+            tools["seq"] += 1
+            snapshot = {"seq": tools["seq"], "at": time.time(), "tool_calls_started": tools["started"],
+                        "tool_calls_finished": tools["finished"], "tool_calls_failed": tools["failed"]}
+        if e2_on:
+            now = e2_cache.stats_snapshot()
+            counts = {key: now[key] - e2_baseline.get(key, 0) for key in ("hits", "misses", "skipped")}
+            rows = e2_cache.row_count(config.get("data_cache_dir"))
+            counts["saved_entries"] = rows - rows_baseline if rows is not None and rows_baseline is not None else None
+            snapshot["e2_cache"] = counts
+        else:
+            snapshot["e2_cache"] = None
+        send("checkpoint", snapshot)
+
     def heartbeat():
         while not finished.wait(HEARTBEAT_INTERVAL):
             send("heartbeat")
+            with contextlib.suppress(Exception):
+                checkpoint()
 
     def flush_now(timeout: float):
         """On cancel: export the traces of the calls completed so far, before any termination."""
@@ -192,16 +223,17 @@ def _child(conn, setup: str | None) -> None:
     class CallRecorder(BaseCallbackHandler):
         """Streams each model call to the parent, so a terminated run can still be accounted for."""
 
-        def _start(self, run_id, metadata):
+        def _start(self, run_id, metadata, parent_run_id=None):
             meta = metadata or {}
+            # The step key: a primary call and its E1 backup share their parent run (with_fallbacks).
             send("call_start", str(run_id), meta.get("langgraph_node") or "unattributed",
-                 meta.get("ls_model_name") or "unknown", time.time())
+                 meta.get("ls_model_name") or "unknown", time.time(), str(parent_run_id or run_id))
 
         def on_chat_model_start(self, serialized, messages, *, run_id, metadata=None, **kwargs):
-            self._start(run_id, metadata)
+            self._start(run_id, metadata, kwargs.get("parent_run_id"))
 
         def on_llm_start(self, serialized, prompts, *, run_id, metadata=None, **kwargs):
-            self._start(run_id, metadata)
+            self._start(run_id, metadata, kwargs.get("parent_run_id"))
 
         def on_llm_end(self, response, *, run_id, **kwargs):
             from tradingagents.e3_tracing import _tokens
@@ -210,11 +242,32 @@ def _child(conn, setup: str | None) -> None:
             send("call_end", str(run_id), time.time(), tokens_in, tokens_out, None)
 
         def on_llm_error(self, error, *, run_id, **kwargs):
-            send("call_end", str(run_id), time.time(), None, None, f"{type(error).__name__}: {error}"[:300])
+            from tradingagents.e3_tracing import _tokens
+
+            # A failed call can still carry the provider's usage (e.g. a stream that broke mid-way).
+            response = kwargs.get("response")
+            tokens_in, tokens_out = _tokens(response) if response is not None else (None, None)
+            send("call_end", str(run_id), time.time(), tokens_in, tokens_out,
+                 service.sanitize_error(f"{type(error).__name__}: {error}", 300))
+
+        def on_tool_start(self, serialized, input_str, **kwargs):
+            with tools_lock:
+                tools["started"] += 1
+
+        def on_tool_end(self, output, **kwargs):
+            with tools_lock:
+                tools["finished"] += 1
+            checkpoint()
+
+        def on_tool_error(self, error, **kwargs):
+            with tools_lock:
+                tools["finished"] += 1
+                tools["failed"] += 1
+            checkpoint()
 
     def on_event(event):
-        if event.kind == "budget":          # the per-run limit tripped: the parent starts its grace timer
-            send("budget", dict(event.state or {}))
+        if event.kind in ("budget", "deadline"):    # a limit tripped: the parent starts its grace timer
+            send(event.kind, dict(event.state or {}))
             return
         send("event", event.kind, event.progress, event.resuming, _portable_messages(event.messages))
 
@@ -225,7 +278,9 @@ def _child(conn, setup: str | None) -> None:
     except service.AnalysisCancelled as exc:
         send("cancelled", {"stage": exc.stage, "in_flight": exc.in_flight_model_calls,
                            "prevented": exc.prevented_calls, "released_after": exc.released_after_seconds,
-                           "message": str(exc), "budget": getattr(exc, "budget", None)})
+                           "message": str(exc), "budget": getattr(exc, "budget", None),
+                           "deadline": getattr(exc, "deadline", None),
+                           "record": getattr(exc, "analysis_failure", None)})
     except BaseException as exc:  # noqa: BLE001 - reported to the parent, which re-raises it
         # With what the run recorded before failing (service._record_failure), for the parent's caller.
         send("error", type(exc).__name__, service.sanitize_error(str(exc), 2000),
@@ -371,9 +426,25 @@ def _reap(worker: _Worker) -> None:
 class _Tally:
     calls: dict = field(default_factory=dict)       # run_id -> record, in start order
 
-    def start(self, run_id, agent, model, at):
+    # step key -> when the parent heard of the step's first call, on the parent's monotonic clock. The
+    # child's "start" times are wall clock (kept for the records); a clock step must not move a deadline.
+    step_started: dict = field(default_factory=dict)
+
+    def start(self, run_id, agent, model, at, step=None, *, received: float | None = None):
+        received = time.monotonic() if received is None else received
+        key = step if step is not None else run_id
         self.calls[run_id] = {"agent": agent, "model": model, "start": at, "end": None,
-                              "input_tokens": None, "output_tokens": None, "error": None}
+                              "input_tokens": None, "output_tokens": None, "error": None, "step": step,
+                              "received_mono": received, "step_key": key}
+        self.step_started.setdefault(key, received)
+
+    def overdue_step(self, now: float, limit: float) -> tuple[str, float] | None:
+        """(agent, seconds) of a model call whose step has run longer than ``limit`` (``now``: monotonic)."""
+        for record in self.in_flight:
+            first = self.step_started.get(record["step_key"], record["received_mono"])
+            if now - first >= limit:
+                return record["agent"], now - first
+        return None
 
     def end(self, run_id, at, tokens_in, tokens_out, error):
         record = self.calls.get(run_id)
@@ -385,8 +456,26 @@ class _Tally:
         return [r for r in self.calls.values() if r["end"] is None]
 
 
+def _checkpoint_view(checkpoint: dict | None) -> dict | None:
+    """The child's last checkpoint, labelled as what it is: confirmed up to then, a lower bound after."""
+    if not checkpoint:
+        return None
+    return {
+        "tool_calls_started": checkpoint.get("tool_calls_started"),
+        "tool_calls_finished": checkpoint.get("tool_calls_finished"),
+        "tool_calls_failed": checkpoint.get("tool_calls_failed"),
+        "e2_cache": checkpoint.get("e2_cache"),
+        "taken_seconds_before_failure": round(max(0.0, time.monotonic() - checkpoint.get("received_mono",
+                                                                                         time.monotonic())), 1),
+        "basis": ("last checkpoint the worker sent before it failed: counts are confirmed up to then and are "
+                  "a lower bound for the whole run"),
+    }
+
+
 def _write_partial_usage(request, tally: _Tally, began: float, reason: str, e3_path: Path | None,
-                         budget_info: dict | None) -> tuple[dict | None, Path | None]:
+                         budget_info: dict | None, checkpoint: dict | None = None, *, status: str = "failed",
+                         category: str = "worker_failure",
+                         deadline_info: dict | None = None) -> tuple[dict | None, Path | None]:
     """token_usage.json for a run whose worker failed, from the calls the child streamed.
 
     Only what the parent saw: completed calls with the tokens they reported; calls still running
@@ -402,22 +491,31 @@ def _write_partial_usage(request, tally: _Tally, began: float, reason: str, e3_p
             with contextlib.suppress(OSError, ValueError):
                 summary = json.loads(Path(e3_path).read_text(encoding="utf-8"))
         cost = service.e3_cost(summary)
+        view = _checkpoint_view(checkpoint)
         usage = {
-            "llm_calls": len(calls), "tool_calls": None, "tokens_in": tokens_in, "tokens_out": tokens_out,
-            "tokens_total": tokens_in + tokens_out, "elapsed_seconds": round(time.time() - began, 1),
-            "run_id": request.run_id, "source": request.source, "status": "failed",
+            "llm_calls": len(calls), "tool_calls": view["tool_calls_started"] if view else None,
+            "tokens_in": tokens_in, "tokens_out": tokens_out,
+            "tokens_total": tokens_in + tokens_out, "elapsed_seconds": round(time.monotonic() - began, 1),
+            "run_id": request.run_id, "source": request.source, "status": status,
             "error": service.sanitize_error(reason),
             "llm_calls_failed": sum(1 for r in finished if r["error"]),
             "llm_calls_succeeded": sum(1 for r in finished if not r["error"]),
             "llm_calls_in_flight": len(calls) - len(finished),
-            "tokens_note": ("from the calls the worker reported before it failed; calls in flight reported "
-                            "none; tool calls and E2 counters were not reported"),
-            "e2_cache": None,
+            "tokens_note": ("from the calls the worker reported before it failed (confirmed per call); calls "
+                            "in flight reported none"),
+            "e2_cache": ({**view["e2_cache"], "complete": False} if view and view["e2_cache"] else None),
+            "worker_checkpoint": view,
+            "metrics_basis": ("LLM calls and tokens: confirmed per call by the worker's messages. Tool calls and "
+                              "E2 counts: the worker's last checkpoint (see worker_checkpoint), a lower bound; "
+                              "null where the worker sent none."),
+            "error_category": category,
             "e3_cost": {"estimated_cost_usd": cost["estimated_cost_usd"], "basis": cost["basis"],
                         "partial_cost_usd": cost["partial_cost_usd"], "note": cost["note"]},
         }
         if budget_info:
             usage["run_budget"] = budget_info
+        if deadline_info:
+            usage["run_deadline"] = deadline_info
         if e3_path is not None:
             usage["e3_summary_path"] = str(e3_path)
         config = request.config if request.config is not None else service.config_for_source(request.source)
@@ -425,6 +523,9 @@ def _write_partial_usage(request, tally: _Tally, began: float, reason: str, e3_p
         target.mkdir(parents=True, exist_ok=True)
         path = target / "token_usage.json"
         path.write_text(json.dumps(usage, indent=2), encoding="utf-8")
+        # The child was stopped before it could record the run: the parent writes its run record.
+        service._store_run(config, request, request.run_id, status, usage, e3_summary_path=e3_path,
+                           error=usage["error"], error_category=category)
         return usage, path
     except Exception:  # noqa: BLE001
         logger.warning("could not record the failed run %s", request.run_id, exc_info=True)
@@ -432,7 +533,7 @@ def _write_partial_usage(request, tally: _Tally, began: float, reason: str, e3_p
 
 
 def _write_terminated_e3(request, tally: _Tally, began: float, reason: str, status: str,
-                         flush_status: str | None) -> Path | None:
+                         flush_status: str | None, checkpoint: dict | None = None) -> Path | None:
     """The E3 summary of a terminated run, from the call records the child streamed.
 
     Completed calls keep their reported tokens. Calls in flight have no end, no
@@ -460,7 +561,7 @@ def _write_terminated_e3(request, tally: _Tally, began: float, reason: str, stat
         except (OSError, ValueError):
             pricing = None
     summary = callback.summary(ticker=request.ticker, analysis_date=request.trade_date, status=status,
-                               wall_time_seconds=now - began, run_error=reason, pricing=pricing)
+                               wall_time_seconds=time.monotonic() - began, run_error=reason, pricing=pricing)
     for entry, (_, r) in zip(summary["per_call"], records, strict=True):
         entry["complete"] = r["end"] is not None
     in_flight = tally.in_flight
@@ -472,6 +573,7 @@ def _write_terminated_e3(request, tally: _Tally, began: float, reason: str, stat
         langfuse_flushed=flush_status == "ok",
         billing_note=("calls in flight when the worker was terminated were abandoned, not undone: the provider "
                       "may still bill them; their tokens are unknown and not estimated"),
+        worker_checkpoint=_checkpoint_view(checkpoint),
     )
     target = Path(os.getenv("E3_RESULTS_DIR", "e3_results"))
     target.mkdir(parents=True, exist_ok=True)
@@ -504,22 +606,68 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
                       config=request.config if request.config is not None
                       else service.config_for_source(request.source))
     pool = pool_for(setup)
-    tally, began = _Tally(), time.time()
+    tally, began = _Tally(), time.monotonic()      # began: for durations only
     cancel_sent_at = None
     flush_status = None
     budget_info = None              # set when the child reports that the run's limit tripped
+    deadline_info = None            # set when a deadline is reached (the child's guard or this parent)
+    checkpoint = None               # the child's latest E2 / tool-call counts, with when they were taken
+    deadline = request.deadline
+    stop_grace = grace              # shortened to the deadline's grace when a deadline stops the run
     outcome = None
     worker = None
+
+    def deadline_reached(which: str, reason: str) -> dict:
+        from tradingagents.run_deadline import RunDeadline
+
+        d: RunDeadline = deadline
+        return {"analysis_seconds": d.analysis_seconds, "step_seconds": d.step_seconds,
+                "target_seconds": d.target_seconds, "elapsed_seconds": round(d.elapsed(), 1),
+                "exhausted": True, "which": which, "reason": reason, "enforced_by": "parent"}
+
     try:
-        worker = pool.take(ready_timeout)
-        worker.conn.send(("run", request, dict(os.environ)))
+        remaining = deadline.remaining() if deadline is not None else None
+        if remaining is not None and remaining <= 0:
+            raise service.AnalysisDeadlineExceeded(request.run_id, "before it started", 0, 0, deadline=deadline_reached(
+                "analysis", f"analysis deadline reached before a worker was ready ({deadline.analysis_seconds:g} s)"))
+        try:
+            # Worker start-up counts against the deadline.
+            budget_ready = ready_timeout if remaining is None else min(
+                remaining, ready_timeout if ready_timeout is not None else _env_seconds(READY_ENV, DEFAULT_READY_SECONDS))
+            worker = pool.take(budget_ready, attempts=2 if remaining is None or remaining > 5 else 1)
+        except WorkerStartupError:
+            if deadline is not None and deadline.remaining() is not None and deadline.remaining() <= 0:
+                raise service.AnalysisDeadlineExceeded(request.run_id, "before it started", 0, 0, deadline=deadline_reached(
+                    "analysis", "analysis deadline reached while the worker was starting")) from None
+            raise
+        sent = request if deadline is None else replace(request, deadline=deadline.for_handoff())
+        worker.conn.send(("run", sent, dict(os.environ)))
         last_heard = time.monotonic()
         while outcome is None:
             if cancel is not None and cancel.is_set() and cancel_sent_at is None:
                 cancel_sent_at = time.monotonic()
                 with contextlib.suppress(BrokenPipeError, OSError):
                     worker.conn.send(("cancel", grace))
-            if cancel_sent_at is not None and time.monotonic() - cancel_sent_at > grace:
+            # The first reason to stop wins: a cancel or budget stop already under way is not relabelled.
+            if deadline is not None and deadline_info is None and budget_info is None and cancel_sent_at is None:
+                now = time.monotonic()
+                if deadline.passed():
+                    deadline_info = deadline_reached("analysis", f"analysis deadline reached: {deadline.elapsed():.1f} s "
+                                                                 f"of {deadline.analysis_seconds:g} s")
+                elif deadline.step_seconds is not None:
+                    # A call in flight past its step's deadline cannot be refused by the child's guard
+                    # (it is already running), so the parent acts; the slack lets the guard go first.
+                    overdue = tally.overdue_step(now, deadline.step_seconds + STEP_DEADLINE_SLACK)
+                    if overdue:
+                        deadline_info = deadline_reached("step", f"model step deadline reached: {overdue[0]} has "
+                                                                 f"waited {overdue[1]:.1f} s of {deadline.step_seconds:g} s")
+                if deadline_info is not None:
+                    stop_grace = min(grace, deadline.grace_seconds)
+                    if cancel_sent_at is None:
+                        cancel_sent_at = time.monotonic()
+                        with contextlib.suppress(BrokenPipeError, OSError):
+                            worker.conn.send(("cancel", stop_grace))
+            if cancel_sent_at is not None and time.monotonic() - cancel_sent_at > stop_grace:
                 worker.stop()
                 outcome = ("terminated",)
                 break
@@ -555,19 +703,25 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
             last_heard = time.monotonic()
             kind = message[0]
             if kind == "call_start":
-                tally.start(*message[1:])
+                tally.start(*message[1:], received=last_heard)
             elif kind == "call_end":
                 tally.end(*message[1:])
             elif kind == "flushed":
                 flush_status = message[1]
-            elif kind == "budget":
+            elif kind == "checkpoint":
+                checkpoint = {**message[1], "received_mono": last_heard}
+            elif kind in ("budget", "deadline"):
                 # The child is stopping itself; if a model call hangs, terminate it after the grace
                 # period exactly as for a cancel by the person.
-                budget_info = message[1]
+                if kind == "budget" and deadline_info is None:
+                    budget_info = message[1]
+                elif kind == "deadline" and budget_info is None:
+                    deadline_info = {**message[1], "enforced_by": "worker"}
+                    stop_grace = min(grace, deadline.grace_seconds) if deadline is not None else grace
                 if cancel_sent_at is None:
                     cancel_sent_at = time.monotonic()
                     with contextlib.suppress(BrokenPipeError, OSError):
-                        worker.conn.send(("cancel", grace))
+                        worker.conn.send(("cancel", stop_grace))
             elif kind == "event" and on_event is not None:
                 _, event_kind, progress, resuming, messages = message
                 on_event(service.AnalysisEvent(request.run_id, event_kind, messages, None, resuming, progress))
@@ -592,7 +746,14 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
         return outcome[1]
     if kind == "cancelled":
         info = outcome[1]
-        if info.get("budget"):
+        if info.get("deadline"):
+            exc = service.AnalysisDeadlineExceeded(request.run_id, info["stage"], info["in_flight"],
+                                                   info["prevented"], deadline=info["deadline"])
+            if info.get("record"):
+                exc.analysis_failure = info["record"]
+                exc.usage_path = service.run_directory(request.config, request.ticker, request.trade_date) \
+                    / "token_usage.json"
+        elif info.get("budget"):
             exc = service.AnalysisBudgetExceeded(request.run_id, info["stage"], info["in_flight"],
                                                  info["prevented"], budget=info["budget"])
         else:
@@ -605,24 +766,32 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
         in_flight = len(tally.in_flight)
         if kind == "terminated":
             waited = round(time.monotonic() - cancel_sent_at, 3)
-            stopped = (f"was stopped by its per-run limit ({budget_info.get('reason')})" if budget_info
+            stopped = (f"was stopped by its deadline ({deadline_info.get('reason')})" if deadline_info
+                       else f"was stopped by its per-run limit ({budget_info.get('reason')})" if budget_info
                        else "was cancelled")
-            reason = (f"analysis {request.run_id} {stopped}; the worker did not stop within {grace:g}s "
+            reason = (f"analysis {request.run_id} {stopped}; the worker did not stop within {stop_grace:g}s "
                       f"and was terminated ({in_flight} model call(s) in flight were abandoned, not undone: "
                       "the provider may still bill them)")
         else:
             reason = (f"analysis {request.run_id} failed: the worker sent no heartbeat for {silence_limit:g}s "
                       f"and was terminated ({in_flight} model call(s) in flight were abandoned, not undone: "
                       "the provider may still bill them)")
-        status = ("budget_exceeded" if budget_info else "cancelled") if kind == "terminated" else "failed"
-        e3_path = _write_terminated_e3(request, tally, began, reason, status, flush_status)
+        status = (("deadline_exceeded" if deadline_info else "budget_exceeded" if budget_info else "cancelled")
+                  if kind == "terminated" else "failed")
+        e3_path = _write_terminated_e3(request, tally, began, reason, status, flush_status, checkpoint)
         if kind == "unresponsive":
             error = WorkerUnresponsive(reason)
             error.e3_summary_path = e3_path
             error.analysis_failure, error.usage_path = _write_partial_usage(
-                request, tally, began, reason, e3_path, budget_info)
+                request, tally, began, reason, e3_path, budget_info, checkpoint)
             raise error
-        if budget_info:
+        if deadline_info:
+            exc = service.AnalysisDeadlineExceeded(request.run_id, "by terminating the worker", in_flight, 0,
+                                                   deadline=deadline_info)
+            exc.analysis_failure, exc.usage_path = _write_partial_usage(
+                request, tally, began, reason, e3_path, budget_info, checkpoint, status="deadline_exceeded",
+                category="timeout", deadline_info=deadline_info)
+        elif budget_info:
             exc = service.AnalysisBudgetExceeded(request.run_id, "by terminating the worker", in_flight, 0,
                                                  budget=budget_info)
         else:
@@ -631,13 +800,19 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
         exc.args = (reason,)
         exc.terminated = True
         exc.e3_summary_path = e3_path
+        exc.worker_checkpoint = _checkpoint_view(checkpoint)
         exc.langfuse_flush = flush_status or "not attempted"
         raise exc
     if kind == "error":
         _, name, text, *rest = outcome
         if name == "AnalysisBusyError":
             raise service.AnalysisBusyError(text)
-        error = ValueError(text) if name in ("ValueError",) else RuntimeError(f"{name}: {text}")
+        if name == "FallbackConfigError":     # keep its "configuration" category across the process boundary
+            from tradingagents.e1_routing import FallbackConfigError
+
+            error = FallbackConfigError(text)
+        else:
+            error = ValueError(text) if name in ("ValueError",) else RuntimeError(f"{name}: {text}")
         partial = rest[0] if rest else None
         if partial:                          # written by the child (service._record_failure)
             error.analysis_failure = partial
@@ -646,12 +821,22 @@ def run_in_worker(request: service.AnalysisRequest, *, on_event=None, cancel: th
                 / "token_usage.json"
         raise error
     reason = f"analysis {request.run_id} failed: the analysis worker exited unexpectedly (exit code {outcome[1]})"
-    e3_path = _write_terminated_e3(request, tally, began, reason, "failed", flush_status)
+    e3_path = _write_terminated_e3(request, tally, began, reason, "failed", flush_status, checkpoint)
     error = RuntimeError(reason)
     error.e3_summary_path = e3_path
     error.analysis_failure, error.usage_path = _write_partial_usage(request, tally, began, reason, e3_path,
-                                                                    budget_info)
+                                                                    budget_info, checkpoint)
     raise error
+
+
+def prewarm(setup: str | None = None) -> None:
+    """Start a spare worker in the background now, so the first analysis does not pay the ~2-3 s start-up.
+
+    No-op in inline mode (unless a test ``setup`` is given, as run_in_worker does). The spare adopts each
+    request's environment when it is used, as any spare does.
+    """
+    if worker_mode() == "process" or setup is not None:
+        pool_for(setup).replenish()
 
 
 def analysis_runner():

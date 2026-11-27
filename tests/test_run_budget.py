@@ -204,7 +204,8 @@ def test_the_status_line_for_people():
     guard = _guard(calls=2, cost=1.0)
     _end(guard, _start(guard), 10, 10)
     line = run_budget.describe_snapshot(guard.snapshot())
-    assert line.startswith("Per-run limits: 1 of 2 LLM calls; $") and "of $1.00 budget estimate" in line
+    assert line.startswith("Per-run limits: 1 of 2 LLM calls; budget accounting $0.000030 of $1.00")
+    assert "(conservative, not a bill: $0.000030 from reported tokens)" in line
     assert run_budget.describe_snapshot(None) == "Per-run limits: off"
 
 
@@ -329,10 +330,10 @@ def test_without_a_budget_nothing_changes(tmp_path, monkeypatch, offline):  # no
     result = _service(tmp_path, monkeypatch, None)
     assert "run_budget" not in result.usage and "run_budget" not in _e3(tmp_path)
     assert result.usage["llm_calls"] == 15
-    # The CLI and the MCP server build requests without one.
+    # The CLI builds requests without one; the MCP server always sets its call limit (tests/test_mcp_budget.py).
     from tradingagents import mcp_server
 
-    assert mcp_server.build_request("NVDA", TRADE_DATE).budget is None
+    assert mcp_server.build_request("NVDA", TRADE_DATE).budget.max_llm_calls == 24
     assert service.AnalysisRequest(ticker="NVDA", trade_date=TRADE_DATE, source="cli").budget is None
 
 
@@ -434,7 +435,9 @@ def test_the_dashboard_page_shows_the_limits_and_a_budget_stop(tmp_path, monkeyp
             monkeypatch.setitem(vendors, vendor, lambda *a, _m=method, **k: f"{_m} data")
 
     page = AppTest.from_file(str(Path(trade.__file__).with_name("app.py")), default_timeout=30).run()
-    assert any("Per-run limits:** 4 LLM calls, $0.04 estimated cost" in m.value for m in page.sidebar.markdown)
+    assert any("LLM-call limit:** 4 (set by TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS)" in m.value
+               for m in page.sidebar.markdown)
+    assert [n.value for n in page.sidebar.number_input if n.label.startswith("Estimated-cost ceiling")] == [0.04]
     next(t for t in page.text_input if t.label == "Ticker").input("NVDA")
     page.date_input[0].set_value(datetime.date.fromisoformat(TRADE_DATE))
     next(b for b in page.button if b.label == "Run analysis").click()

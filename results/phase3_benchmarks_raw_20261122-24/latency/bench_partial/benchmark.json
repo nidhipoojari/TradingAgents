@@ -1,0 +1,47 @@
+{
+ "profiles": {
+  "10-call": {
+   "source": "results/phase3_smoke/20261122_225216/e3/NVDA_2026-10-23_20261122-225220-bf036521_e3.json",
+   "market_tool_rounds": 1,
+   "data_seconds_per_tool": 0.26,
+   "reference_wall_seconds": 25.805,
+   "llm_seconds": 24.12
+  },
+  "12-call": {
+   "source": "consistency_evaluation/nvda_live/run_1/e3/NVDA_2026-10-23_27d3d8aa_e3.json",
+   "market_tool_rounds": 3,
+   "data_seconds_per_tool": 4.443,
+   "reference_wall_seconds": 40.64,
+   "llm_seconds": 26.41
+  }
+ },
+ "scenarios": {
+  "10-call, primary 503 on its first 2 calls, backup covers them": {
+   "n": 3,
+   "median": 30.17,
+   "p95": 30.2,
+   "max": 30.2,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 6.05,
+   "runs": [
+    {
+     "seconds": 30.17,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 30.2,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 30.16,
+     "outcome": "completed",
+     "llm_calls": 12
+    }
+   ]
+  }
+ }
+}

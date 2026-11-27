@@ -108,6 +108,15 @@ def hung_market_call() -> None:
     _models(_scripted(block_market=True))
 
 
+SLOW_STARTUP_SECONDS = 4.0
+
+
+def slow_start_hung_market_call() -> None:
+    """A worker that takes 4 s to start (as a cold one can under load), then hangs in its first call."""
+    time.sleep(SLOW_STARTUP_SECONDS)
+    hung_market_call()
+
+
 # ------------------------------------------------------------------ start-up and watchdog faults
 def hang_at_startup() -> None:
     threading.Event().wait()                    # never reports ready
@@ -201,6 +210,123 @@ def fail_after_two_calls() -> None:
     _after_two_calls(_unavailable)
 
 
+def config_error_after_two_calls() -> None:
+    """A configuration problem found mid-run (as e1_routing raises for an unusable backup provider)."""
+    def refuse():
+        from tradingagents.e1_routing import FallbackConfigError
+
+        raise FallbackConfigError("quick backup 'claude-x' runs on anthropic, but ANTHROPIC_API_KEY is not set")
+
+    _after_two_calls(refuse)
+
+
+def value_error_after_two_calls() -> None:
+    """A ValueError raised inside the run, after validation: a run failure, not a bad request."""
+    def refuse():
+        raise ValueError("unexpected value inside the run")
+
+    _after_two_calls(refuse)
+
+
 def die_after_two_calls() -> None:
     """The worker process itself dies inside its third model call."""
     _after_two_calls(lambda: os._exit(3))
+
+
+def freeze_after_two_calls() -> None:
+    """The whole worker stops (no messages, no heartbeat) inside its third model call: the parent
+    has only what the worker sent before, including its last checkpoint."""
+    import signal
+
+    def freeze():
+        os.kill(os.getpid(), signal.SIGSTOP)
+        # A self-sent SIGSTOP can let the sending thread run on briefly (seen under WSL2): block too,
+        # so this call can never complete and report back, as in a real freeze.
+        threading.Event().wait()
+
+    _after_two_calls(freeze)
+
+
+# ------------------------------------------------------------------ latency replay (benchmarks)
+def replay() -> None:
+    """Scripted models that answer with the per-call latencies of a saved real run.
+
+    REPLAY_PROFILE names a JSON file: ``latencies`` (seconds per successful call, in order),
+    ``market_tool_rounds`` (1: all tools in one round, as the 10-call runs; 3: one tool per round, as the
+    12-call runs), ``data_seconds_per_tool`` (vendor delay; an E2 cache hit skips it), and optionally
+    ``main`` / ``backup`` behaviour ("ok", "503", "hang") with ``main_fail_seconds`` /
+    ``backup_fail_seconds`` and ``main_fail_calls`` / ``backup_fail_calls`` (only the first N calls fail;
+    omitted: every call). Models named in ``backup_name`` play the backup.
+    """
+    import json
+
+    from langchain_core.messages import AIMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+
+    from tests.test_graph_end_to_end import ARGS, TEXT, _Client
+    from tradingagents import e1_routing
+    from tradingagents.dataflows import router
+
+    # Read on first use, not at start-up: a warm spare starts before the next scenario sets
+    # REPLAY_PROFILE, and adopts the request's environment only when it takes the request.
+    loaded: dict = {}
+
+    def profile() -> dict:
+        if not loaded:
+            with open(os.environ["REPLAY_PROFILE"], encoding="utf-8") as handle:
+                loaded.update(json.load(handle))
+        return loaded
+
+    _offline_vendors()
+
+    def vendor(*args, _method="", **kwargs):
+        time.sleep(float(profile().get("data_seconds_per_tool", 0)))
+        return f"{_method} data"
+
+    for method, vendors in router.VENDOR_METHODS.items():
+        for name in list(vendors):
+            vendors[name] = lambda *a, _m=method, **k: vendor(*a, _method=_m, **k)
+    state = {"i": 0}
+    lock = threading.Lock()
+    base = type(_scripted())
+
+    class Replay(base):
+        role: str = "main"
+
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            settings = profile()
+            latencies, rounds = settings["latencies"], int(settings.get("market_tool_rounds", 1))
+            behaviour = settings.get(self.role, "ok")
+            if behaviour == "hang":
+                threading.Event().wait()
+            if behaviour == "503":
+                with lock:
+                    failures = state.setdefault(f"{self.role}_failures", 0)
+                    limit = settings.get(f"{self.role}_fail_calls")      # None: every call fails
+                    failing = limit is None or failures < int(limit)
+                    if failing:
+                        state[f"{self.role}_failures"] = failures + 1
+                if failing:
+                    time.sleep(float(settings.get(f"{self.role}_fail_seconds", 0)))
+                    raise RuntimeError("503 UNAVAILABLE: model overloaded (replay)")
+            with lock:
+                i = state["i"]
+                state["i"] += 1
+            time.sleep(latencies[min(i, len(latencies) - 1)])
+            usage = {"input_tokens": 100, "output_tokens": 20, "total_tokens": 120}
+            if self.tools:
+                done = sum(1 for m in messages if getattr(m, "tool_calls", None))
+                if done < rounds:
+                    tools = list(self.tools) if rounds == 1 else [self.tools[done % len(self.tools)]]
+                    calls = [{"name": t.name, "id": f"call_{done}_{n}",
+                              "args": {k: v for k, v in ARGS.items()
+                                       if k in t.tool_call_schema.model_json_schema()["properties"]}}
+                             for n, t in enumerate(tools)]
+                    return ChatResult(generations=[ChatGeneration(message=AIMessage(
+                        content="", tool_calls=calls, usage_metadata=usage))])
+            return ChatResult(generations=[ChatGeneration(message=AIMessage(content=TEXT, usage_metadata=usage))])
+
+    main, backup = Replay(model_name="replay-main"), Replay(model_name="replay-backup", role="backup")
+    e1_routing.create_tier_client = lambda cfg, tier, **k: _Client(
+        (backup if cfg[f"{tier}_think_llm"] == profile().get("backup_name", "replay-backup") else main).model_copy(
+            update={"callbacks": k.get("callbacks")}))

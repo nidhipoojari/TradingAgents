@@ -21,13 +21,14 @@ broker); code running inside this process is trusted. See PHASE3_CHANGES.md,
 
 import json
 import os
+import time
 from datetime import date
 from pathlib import Path
 
 import streamlit as st
 
 from cli.prompts import detect_asset_type, parse_ticker
-from tradingagents import run_budget, service
+from tradingagents import e1_routing, run_budget, run_deadline, service
 from tradingagents.dashboard import jobs, trade
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.execution import identity as auth, order_policy as op
@@ -68,6 +69,27 @@ def _broker():
         return broker, None
     except BrokerNotConfigured as exc:
         return None, str(exc)
+
+
+def _decisions():
+    """The approval-decision log (rejections, failed submissions), beside the order ledger."""
+    from tradingagents.execution.decision_log import DecisionLog
+
+    return DecisionLog.for_results_dir(service.config_for_source("dashboard")["results_dir"])
+
+
+def _proposals():
+    """Trade proposal records (TRADE_PROPOSAL), beside the order ledger."""
+    from tradingagents.proposal_store import ProposalStore
+
+    return ProposalStore.for_results_dir(service.config_for_source("dashboard")["results_dir"])
+
+
+def _clear_approval(run_id: str) -> None:
+    """Forget this run's approval tick and typed password, so a rejected or reconsidered proposal must be
+    approved again from scratch."""
+    for key in [k for k in st.session_state if str(k).startswith((f"approve-{run_id}-", f"stepup-{run_id}"))]:
+        del st.session_state[key]
 
 
 def _identity():
@@ -120,17 +142,20 @@ def sidebar(broker, broker_error):
         f"**Provider:** {cfg.get('llm_provider')}  \n"
         f"**Quick model:** {cfg.get('quick_think_llm')}  \n"
         f"**Deep model:** {cfg.get('deep_think_llm')}")
-    fallbacks = [f"{t}: {cfg.get(f'{t}_fallback_llm')}" for t in ("quick", "deep") if cfg.get(f"{t}_fallback_llm")]
+    fallbacks = [f"{t}: {cfg.get(f'{t}_fallback_llm')}"
+                 + (f" ({cfg[f'{t}_fallback_provider']})" if cfg.get(f"{t}_fallback_provider") else "")
+                 for t in ("quick", "deep") if cfg.get(f"{t}_fallback_llm")]
     st.sidebar.markdown(f"**E1 backup models:** {', '.join(fallbacks) if fallbacks else 'off'}")
+    bounded = service.config_for_source("dashboard")
+    retries = bounded.get("llm_backup_retries")
+    st.sidebar.markdown(
+        "**Model calls:** primary no retries; backup "
+        + (f"{retries} retry" if retries is not None else f"client setting {bounded.get('llm_backup_max_retries')}")
+        + f"; {bounded.get('llm_timeout') or 'no'} s timeout per request")
     st.sidebar.markdown(f"**E2 data cache:** {'on' if cfg.get('e2_cache_enabled') else 'off'}")
     e3_on = os.getenv("E3_TRACE_ENABLED", "").lower() in {"1", "true", "yes"}
     st.sidebar.markdown(f"**E3 tracing:** {'on (Langfuse)' if e3_on else 'off'}")
-    try:
-        limits = run_budget.dashboard_budget_from_env()
-        st.sidebar.markdown(f"**Per-run limits:** {limits.describe() if limits else 'off'}")
-        run_budget.check_pricing(limits)
-    except ValueError as exc:
-        st.sidebar.error(str(exc))
+    limits_panel()
 
     st.sidebar.header("Paper trading")
     if broker is None:
@@ -144,6 +169,39 @@ def sidebar(broker, broker_error):
     if st.sidebar.button("Reconnect to Alpaca"):
         _broker.clear()
         st.rerun()
+
+
+def limits_panel():
+    """Everything that will bound the next run, shown before it starts."""
+    st.sidebar.header("Limits for each run")
+    try:
+        deadline = run_deadline.interactive_deadline()
+        st.sidebar.markdown(f"**Time:** {deadline.describe()} (from Run; worker start-up included). "
+                            "The target is reported, never enforced.")
+    except ValueError as exc:
+        st.sidebar.error(str(exc))
+    try:
+        default_cost = run_budget.default_cost_ceiling()
+        if default_cost is None:
+            st.sidebar.warning(f"The cost limit is switched off ({run_budget.COST_ENV}=off).")
+        else:
+            st.sidebar.number_input("Estimated-cost ceiling for the next run ($)", min_value=0.001,
+                                    value=default_cost, step=0.01, format="%.3f", key="cost_ceiling")
+            if st.session_state.get("cost_ceiling", default_cost) > default_cost:
+                st.sidebar.checkbox(f"I approve raising the ceiling above ${default_cost:.2f} for the next run",
+                                    key="approve_ceiling")
+        rows = ["| Analysts | Shallow | Medium | Deep |", "| --- | --- | --- | --- |"]
+        for count in (1, 2, 3, 4):
+            rows.append(f"| {count} | " + " | ".join(str(run_budget.call_limit_for(count, d, d)) for d in DEPTHS.values())
+                        + " |")
+        if (os.environ.get(run_budget.CALLS_ENV) or "").strip():
+            st.sidebar.markdown(f"**LLM-call limit:** {os.environ[run_budget.CALLS_ENV]} "
+                                f"(set by {run_budget.CALLS_ENV})")
+        else:
+            st.sidebar.markdown("**LLM-call limit** (expected calls x 1.5, by analysts and depth):\n\n" + "\n".join(rows))
+        run_budget.check_pricing(run_budget.RunBudget(None, default_cost) if default_cost else None)
+    except ValueError as exc:
+        st.sidebar.error(str(exc))
 
 
 # ------------------------------------------------------------------ analyze form
@@ -171,17 +229,22 @@ def _start(ticker_text, trade_date, analysts, rounds, broker):
         chosen = [a for a in analysts if not (asset_type == "crypto" and a == "fundamentals")]
         if not chosen:
             raise ValueError("choose at least one analyst")
-        limits = run_budget.dashboard_budget_from_env()
-        run_budget.check_pricing(limits)     # a cost limit needs prices: refuse rather than run unlimited
+        clicked, clicked_mono = time.time(), time.monotonic()   # the deadline and the target count from the click
         config = service.config_for_source("dashboard")
         # As in the CLI: an explicit TRADINGAGENTS_MAX_*_ROUNDS wins over the depth picked here.
         for env, key in ROUND_ENVS:
             if not os.environ.get(env):
                 config[key] = rounds
+        limits = run_budget.dashboard_budget(
+            len(chosen), config["max_debate_rounds"], config["max_risk_discuss_rounds"],
+            cost_ceiling=st.session_state.get("cost_ceiling"), approved=bool(st.session_state.get("approve_ceiling")))
+        run_budget.check_pricing(limits)     # a cost limit needs prices: refuse rather than run unlimited
+        deadline = run_deadline.interactive_deadline(started_at=clicked, started_mono=clicked_mono)
         portfolio = _portfolio(broker) if broker is not None else None
         request = service.AnalysisRequest(ticker=ticker, trade_date=trade_date, source="dashboard",
                                           asset_type=asset_type, analysts=tuple(chosen),
-                                          config=config, portfolio=portfolio, budget=limits)
+                                          config=config, portfolio=portfolio, budget=limits,
+                                          deadline=deadline)
         job = jobs.start_job(request)
     except (ValueError, BrokerError, service.AnalysisBusyError) as exc:
         st.error(str(exc))
@@ -198,7 +261,7 @@ def _portfolio(broker) -> PortfolioContext:
 
 
 # ------------------------------------------------------------------ progress
-@st.fragment(run_every=2.0)
+@st.fragment(run_every=1.0)
 def progress(job):
     snap = job.snapshot()
     if snap["status"] != "running":
@@ -207,9 +270,10 @@ def progress(job):
     st.progress(done / total if total else 0.0,
                 text=f"Analyzing {job.request.ticker} for {job.request.trade_date}: "
                      f"{done}/{total} reports, next {label} ({snap['elapsed']:.0f}s)")
-    limits = job.request.budget
-    st.caption(f"Per-run limits: {limits.describe() if limits else 'off'}. The run stops before a model call "
-               "that would pass them.")
+    limits, deadline = job.request.budget, job.request.deadline
+    st.caption(f"This run: {limits.describe() if limits else 'no call or cost limit'}; "
+               f"{deadline.describe() if deadline else 'no deadline'}. It stops before a model call that "
+               "would pass a limit or a deadline.")
     with st.expander("Agent activity"):
         st.code("\n".join(job.log()[-40:]) or "Waiting for the first agent...", language=None)
     if st.button("Cancel analysis"):
@@ -219,6 +283,11 @@ def progress(job):
 
 # ------------------------------------------------------------------ results
 def results(job):
+    if job.status == "deadline_exceeded":
+        st.error(f"Stopped by the deadline, not by you, the budget or a model error. {job.error or ''}")
+        for line in failure_lines(job.run_id, job.failure):
+            st.markdown(line)
+        return
     if job.status == "budget_exceeded":
         st.error(f"Stopped by the per-run limit, not by you and not by a model error. {job.error or ''}")
         st.markdown(run_budget.describe_snapshot(job.budget))
@@ -227,7 +296,9 @@ def results(job):
             st.markdown(cost_text(service.e3_cost(summary)))
         return
     if job.status == "failed":
-        st.error(f"The analysis failed: {job.error or 'unknown error'}")
+        st.error(f"The analysis failed ({job.category or 'error'}): {job.error or 'unknown error'}")
+        if job.hint:
+            st.info(job.hint)
         for line in failure_lines(job.run_id, job.failure):
             st.markdown(line)
         return
@@ -244,6 +315,11 @@ def results(job):
     if result.is_review:
         st.warning("No rating could be read from the final decision. Read it below before acting; "
                    "no order can be placed from this run.")
+    timing = result.usage.get("run_deadline") or {}
+    if timing.get("target_seconds"):
+        met = "met" if timing.get("target_met") else "missed"
+        st.caption(f"Finished {timing['elapsed_seconds']:.1f} s after Run (target {timing['target_seconds']:g} s: "
+                   f"{met}; worker start-up included).")
     st.caption(f"Run ID {result.run_id}. Research output, not financial advice.")
 
     tabs = st.tabs(["Decision", "Analysts", "Research debate", "Trader", "Risk debate",
@@ -299,6 +375,8 @@ def _risk(state):
 def failure_lines(run_id: str, failure: dict | None) -> list[str]:
     """What a failed run used before it stopped, from its record; nothing is shown that was not reported."""
     lines = [f"Run ID {run_id}."]
+    if failure and failure.get("sdk_retries_observed"):
+        lines.append(f"**Hidden SDK retries observed:** {failure['sdk_retries_observed']}")
     if not failure:
         return lines + ["No usage was recorded before the failure."]
     calls = failure.get("llm_calls") or 0
@@ -306,7 +384,7 @@ def failure_lines(run_id: str, failure: dict | None) -> list[str]:
                  f"{failure.get('llm_calls_failed', 0)} failed); {failure.get('tokens_in', 0):,} input and "
                  f"{failure.get('tokens_out', 0):,} output tokens reported.")
     events = failure.get("e1_fallback_events") or []
-    lines.append(f"**E1 backup-model switches:** {len(events) if events else 'none'}")
+    lines.append(f"**E1 backup-model switches:** {e1_routing.describe_events(events)}")
     lines.extend(f"- {event}" for event in events)
     e2 = failure.get("e2_cache")
     if e2:
@@ -337,18 +415,27 @@ def cost_text(cost: dict) -> str:
     return f"**E3 estimated cost:** not available ({cost['note']})"
 
 
+def e2_metric_text(usage: dict) -> str:
+    """The E2 tile. The service records ``e2_cache`` only when E2 is on, so its absence means off, not "no data"
+    (the live run 20261127-111852-5a8696f8 showed "n/a" with E2 off)."""
+    e2 = usage.get("e2_cache")
+    if not e2:
+        return "off"
+    if e2.get("hit_rate_pct") is None:
+        return "n/a (no cacheable requests)"
+    return f"{e2['hit_rate_pct']}% ({e2.get('hits', 0)}/{e2.get('hits', 0) + e2.get('misses', 0)})"
+
+
 def _metrics(result):
     usage = result.usage
     cols = st.columns(4)
     cols[0].metric("Tokens in", f"{usage.get('tokens_in', 0):,}")
     cols[1].metric("Tokens out", f"{usage.get('tokens_out', 0):,}")
     cols[2].metric("Tool calls", usage.get("tool_calls", 0))
-    e2 = usage.get("e2_cache")
-    cols[3].metric("E2 cache hit rate", f"{e2['hit_rate_pct']}%" if e2 and e2.get("hit_rate_pct") is not None
-                   else "n/a")
+    cols[3].metric("E2 cache hit rate", e2_metric_text(usage))
     st.markdown(run_budget.describe_snapshot(usage.get("run_budget")))
     st.markdown("**E1 backup-model switches this run:** "
-                + (str(len(result.fallback_events)) if result.fallback_events else "none"))
+                + e1_routing.describe_events(result.fallback_events))
     for line in result.fallback_events:
         st.caption(line)
     if result.e3_summary_path:
@@ -376,7 +463,7 @@ def paper_trade(result):
         return
     try:
         limits = op.OrderLimits.from_env()
-        panel = trade.load_panel(result, broker, limits)
+        panel = trade.load_panel(result, broker, limits, proposals=_proposals())
     except (BrokerError, ValueError) as exc:
         st.error(str(exc))
         return
@@ -403,8 +490,20 @@ def paper_trade(result):
         return
     st.markdown(f"**{panel.proposal.reason}**")
     identity = _identity()
+    decisions = _decisions()
+    rejection = decisions.rejection(panel.client_order_id)
+    if rejection is not None:
+        # Rejected: no order form, so nothing can be approved or sent until the person reopens it.
+        st.info(f"Trade proposal rejected by {rejection.get('user') or 'an unauthenticated user'} at "
+                f"{rejection.get('recorded_at')} UTC. No order was sent.")
+        if st.button("Reconsider this proposal", key=f"reconsider-{panel.client_order_id}",
+                     disabled=identity is None and auth.auth_required()):
+            trade.reconsider(panel, result, decisions, identity=identity)
+            _clear_approval(result.run_id)
+            st.rerun()
+        return
     if identity is None and auth.auth_required():
-        st.info("Sign in (sidebar) to approve a paper order.")
+        st.info("Sign in (sidebar) to approve or reject a paper order.")
 
     side = panel.proposal.side.value
     kind = "limit"   # limit orders only: the fill can never pass the checked value
@@ -425,10 +524,12 @@ def paper_trade(result):
         stale_ack = st.checkbox(f"The analysis is for {panel.trade_date}, not today. Act on it anyway.",
                                 key=f"stale-{result.run_id}")
     # The approval is keyed to the exact order: changing any part of it clears the tick.
+    # The key also counts reconsiderations: after a rejection is reopened, an earlier tick never carries over.
+    rounds = decisions.reconsiderations(panel.client_order_id)
     confirmed = st.checkbox(
         f"I approve a paper {kind} order: {side.upper()} {qty} {result.ticker}"
         + (f" at ${limit_price:,.2f} limit" if limit_price else "") + f" (up to {value}).",
-        key=f"approve-{result.run_id}-{side}-{kind}-{qty}-{limit_price}")
+        key=f"approve-{result.run_id}-{side}-{kind}-{qty}-{limit_price}-r{rounds}")
     check = trade.evaluate(panel, qty, confirmed, stale_ack, order_type=kind, limit_price=limit_price,
                            identity=identity)
     for problem in check.problems:
@@ -436,13 +537,26 @@ def paper_trade(result):
     # Step-up: the password again for this order; a signed-in but unattended browser cannot approve.
     password = st.text_input("Your password, to approve this order", type="password",
                              key=f"stepup-{result.run_id}", disabled=identity is None)
-    if st.button("Submit paper order", type="primary", disabled=not check.can_submit or not password,
-                 key=f"submit-{panel.client_order_id}"):
+    submit_col, reject_col = st.columns(2)
+    if reject_col.button("Reject trade proposal", key=f"reject-{panel.client_order_id}",
+                         disabled=identity is None and auth.auth_required(),
+                         help="Decline this proposal: nothing is sent to Alpaca, and the decision is recorded."):
+        trade.reject(panel, result, decisions, identity=identity, qty=qty, limit_price=limit_price)
+        _clear_approval(result.run_id)
+        st.rerun()
+    if submit_col.button("Submit paper order", type="primary", disabled=not check.can_submit or not password,
+                         key=f"submit-{panel.client_order_id}"):
         try:
-            identity = auth.confirm_password(identity, password, store=_sessions())
+            try:
+                identity = auth.confirm_password(identity, password, store=_sessions())
+            except auth.AuthError as exc:
+                trade.record_failure(decisions, "password_failed", panel, result, qty=qty, limit_price=limit_price,
+                                     identity=identity, problems=[str(exc)])
+                raise
             st.session_state["identity"] = identity
             receipt = trade.submit(panel, result, broker, qty, confirmed=confirmed, identity=identity,
-                                   order_type=kind, limit_price=limit_price, stale_acknowledged=stale_ack)
+                                   order_type=kind, limit_price=limit_price, stale_acknowledged=stale_ack,
+                                   decisions=decisions, proposals=_proposals())
         except auth.AuthError as exc:
             st.error(f"Not sent: {exc}")
         except op.OrderRejected as exc:
@@ -456,7 +570,17 @@ def paper_trade(result):
 
 
 # ------------------------------------------------------------------ page
+@st.cache_resource
+def _prewarm_worker() -> bool:
+    """Start a spare analysis worker when the page first loads, so even the first run starts warm."""
+    from tradingagents.worker import prewarm
+
+    prewarm()
+    return True
+
+
 def main():
+    _prewarm_worker()
     broker, broker_error = _broker()
     sidebar(broker, broker_error)
     sign_in_panel()

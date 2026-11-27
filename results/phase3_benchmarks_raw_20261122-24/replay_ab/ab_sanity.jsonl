@@ -1,0 +1,2 @@
+{"label": "phase2", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "on", "n": 3, "median": 0.1977, "min": 0.128, "max": 0.2649, "p95": 0.2649, "llm_calls": [10]}
+{"label": "phase3", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "on", "n": 3, "median": 0.1368, "min": 0.1098, "max": 0.1547, "p95": 0.1547, "llm_calls": [10]}

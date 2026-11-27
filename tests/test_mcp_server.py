@@ -111,7 +111,10 @@ def _imported_modules(path: Path) -> set[str]:
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("module", ["tradingagents/mcp_server.py", "tradingagents/service.py"])
+@pytest.mark.parametrize("module", ["tradingagents/mcp_server.py", "tradingagents/service.py",
+                                    "tradingagents/mcp_read_tools.py", "tradingagents/run_store.py",
+                                    "tradingagents/trade_rules.py", "tradingagents/mcp_audit.py",
+                                    "tradingagents/audit_log.py", "tradingagents/proposal_store.py"])
 def test_the_mcp_path_cannot_reach_the_broker(module):
     imported = _imported_modules(ROOT / module)
     assert not {m for m in imported if m.startswith(("tradingagents.execution", "tradingagents.dashboard",
@@ -155,18 +158,21 @@ def _client(server):
 
 
 @pytest.mark.unit
-def test_the_server_lists_one_read_only_tool():
+def test_the_server_lists_five_read_only_tools():
     pytest.importorskip("fastmcp")
 
     async def go():
         async with _client(mcp_server.create_server(run=_stub())) as client:
             return await client.list_tools()
 
-    tools = asyncio.run(go())
-    assert [t.name for t in tools] == ["analyze_stock"]
-    hints = tools[0].annotations
-    assert hints.read_only_hint is True and hints.destructive_hint is False
-    assert "ctx" not in tools[0].input_schema["properties"]
+    tools = {t.name: t for t in asyncio.run(go())}
+    assert sorted(tools) == ["analyze_stock", "get_report", "get_run_metrics", "list_recent_runs", "propose_trade"]
+    for tool in tools.values():
+        hints = tool.annotations
+        assert hints.read_only_hint is True and hints.destructive_hint is False, tool.name
+        assert "ctx" not in tool.input_schema["properties"]
+    assert tools["analyze_stock"].annotations.open_world_hint is True       # models and market data
+    assert all(tools[n].annotations.open_world_hint is False for n in tools if n != "analyze_stock")
 
 
 @pytest.mark.unit
@@ -196,6 +202,38 @@ def test_bad_arguments_come_back_as_tool_errors(arguments, message):
 
     with pytest.raises(ToolError, match=message):
         asyncio.run(go())
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", ["yes", "true", "1", "on", 1, 0, None, [True]])
+def test_a_non_boolean_include_reports_is_refused_before_any_run(value):
+    """FastMCP's lax mode turned "yes" into True and started a full analysis (found 2026-11-27 over stdio)."""
+    pytest.importorskip("fastmcp")
+    from fastmcp.exceptions import ToolError
+
+    started = []
+
+    async def go():
+        async with _client(mcp_server.create_server(run=_stub(record=started))) as client:
+            await client.call_tool("analyze_stock", {"ticker": "NVDA", "trade_date": PAST, "include_reports": value})
+
+    with pytest.raises(ToolError, match="include_reports"):
+        asyncio.run(go())
+    assert started == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", [True, False])
+def test_a_json_boolean_include_reports_still_works(value):
+    pytest.importorskip("fastmcp")
+
+    async def go():
+        async with _client(mcp_server.create_server(run=_stub())) as client:
+            return await client.call_tool("analyze_stock", {"ticker": "NVDA", "trade_date": PAST,
+                                                            "include_reports": value})
+
+    answer = asyncio.run(go()).data
+    assert ("reports" in answer) is value
 
 
 @pytest.mark.unit

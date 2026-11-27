@@ -25,6 +25,14 @@ runs' own records account for every row (see adopt_legacy), never on trust.
 Turn it on in .env (off = old behavior):
     TRADINGAGENTS_E2_CACHE=true
 The file lives at <data_cache_dir>/e2_cache.sqlite. Delete it to clear the cache.
+
+Freshness (Phase 3; both off by default, so Phase 2 behaviour is unchanged):
+  - TRADINGAGENTS_E2_MAX_AGE_DAYS=<n>: an answer saved more than n days ago is fetched again and replaced
+    (for vendors that correct past data, e.g. restated fundamentals or adjusted prices).
+  - TRADINGAGENTS_E2_REFRESH=true: every cacheable request is fetched again and the saved answer replaced.
+  - ``python -m tradingagents.e2_cache info`` / ``invalidate --ticker NVDA [--tool ...] [--saved-before ...]``
+    to inspect or remove saved answers (``--dry-run`` shows what would go).
+Every row keeps when it was saved (saved_at) and, in its key, the vendor chain that produced it.
 """
 from __future__ import annotations
 
@@ -40,13 +48,19 @@ from tradingagents.dataflows.config import get_config
 
 # Counters so we can report the cache hit rate (reset with reset_stats()).
 STATS = {"hits": 0, "misses": 0, "skipped": 0}
+# Phase 3 freshness counters, kept apart so the Phase 2 counters keep their shape. An expired or refreshed
+# lookup is also a miss (the data is fetched again).
+FRESHNESS = {"expired": 0, "refreshed": 0}
 # Tool calls from one model turn run in parallel threads; keep the counts exact.
 _STATS_LOCK = threading.Lock()
 
 
 def _count(key: str) -> None:
     with _STATS_LOCK:
-        STATS[key] += 1
+        if key in FRESHNESS:
+            FRESHNESS[key] += 1
+        else:
+            STATS[key] += 1
 
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _ERROR_PREFIXES = ("DATA_UNAVAILABLE", "NO_DATA_AVAILABLE", "Error")
@@ -54,6 +68,28 @@ _ERROR_PREFIXES = ("DATA_UNAVAILABLE", "NO_DATA_AVAILABLE", "Error")
 
 def is_enabled() -> bool:
     return bool(get_config().get("e2_cache_enabled"))
+
+
+def max_age_days() -> float | None:
+    """The configured maximum age of a saved answer in days (None = no expiry, as in Phase 2)."""
+    raw = get_config().get("e2_cache_max_age_days")
+    if raw in (None, "", "off", "none"):
+        return None
+    value = float(raw)
+    if value < 0:
+        raise ValueError(f"e2_cache_max_age_days must be >= 0, got {raw!r}")
+    return value
+
+
+def _refresh() -> bool:
+    return bool(get_config().get("e2_cache_refresh"))
+
+
+def _age_days(saved_at: str | None) -> float | None:
+    try:
+        return (datetime.now() - datetime.fromisoformat(saved_at)).total_seconds() / 86400
+    except (TypeError, ValueError):
+        return None
 
 
 def _db_path() -> Path:
@@ -130,13 +166,24 @@ def lookup(tool: str, args: tuple, kwargs: dict) -> str | None:
     if not _is_past_request(request):
         _count("skipped")
         return None
+    limit = max_age_days()                         # read first, so a bad setting fails on the first request
+    if _refresh():
+        _count("misses")
+        _count("refreshed")
+        return None
     with closing(_connect()) as db:
         row = db.execute(
-            "SELECT result FROM cache WHERE tool = ? AND request = ?", (tool, request)
+            "SELECT result, saved_at FROM cache WHERE tool = ? AND request = ?", (tool, request)
         ).fetchone()
     if row is None:
         _count("misses")
         return None
+    if limit is not None:
+        age = _age_days(row[1])
+        if age is None or age > limit:             # an unknown age cannot be shown to be fresh
+            _count("misses")
+            _count("expired")
+            return None
     _count("hits")
     return row[0]
 
@@ -159,12 +206,16 @@ def reset_stats() -> None:
     with _STATS_LOCK:
         for key in STATS:
             STATS[key] = 0
+        for key in FRESHNESS:
+            FRESHNESS[key] = 0
 
 
 def stats_snapshot() -> dict:
-    """This process's counts plus the hit rate over cacheable lookups (None if none)."""
+    """This process's counts plus the hit rate over cacheable lookups (None if none). The freshness
+    counters appear only once one is non-zero, so a run without expiry or refresh keeps Phase 2's shape."""
     with _STATS_LOCK:
         counts = dict(STATS)
+        counts.update({k: v for k, v in FRESHNESS.items() if v})
     looked_up = counts["hits"] + counts["misses"]
     counts["hit_rate_pct"] = round(100 * counts["hits"] / looked_up, 1) if looked_up else None
     return counts
@@ -291,6 +342,60 @@ def adopt_legacy(cache_dir: str | Path, results_dir: str | Path, *, only_these_r
     return report
 
 
+# ---------------------------------------------------------------- inspection and invalidation
+def _rows(db: sqlite3.Connection):
+    for tool, request, saved_at in db.execute("SELECT tool, request, saved_at FROM cache"):
+        try:
+            parts = json.loads(request)
+            args = parts[0] if isinstance(parts, list) and parts else []
+            vendors = parts[2].get("vendors") if isinstance(parts, list) and len(parts) > 2 else None
+        except (ValueError, AttributeError, TypeError):
+            args, vendors = [], None
+        ticker = str(args[0]).upper() if args else None
+        yield tool, request, saved_at, ticker, vendors
+
+
+def info(cache_dir) -> dict:
+    """What the cache holds: rows per tool and ticker, the oldest and newest save, rows without a vendor."""
+    path = Path(cache_dir) / "e2_cache.sqlite"
+    if not path.is_file():
+        return {"path": str(path), "rows": 0}
+    by_tool: dict[str, int] = {}
+    by_ticker: dict[str, int] = {}
+    saved, legacy = [], 0
+    with closing(sqlite3.connect(f"file:{path}?mode=ro", uri=True)) as db:
+        for tool, _request, saved_at, ticker, vendors in _rows(db):
+            by_tool[tool] = by_tool.get(tool, 0) + 1
+            if ticker:
+                by_ticker[ticker] = by_ticker.get(ticker, 0) + 1
+            if saved_at:
+                saved.append(saved_at)
+            legacy += vendors is None
+    return {"path": str(path), "rows": sum(by_tool.values()), "by_tool": by_tool, "by_ticker": by_ticker,
+            "oldest_saved_at": min(saved) if saved else None, "newest_saved_at": max(saved) if saved else None,
+            "rows_without_vendor": legacy}
+
+
+def invalidate(cache_dir, *, tool: str | None = None, ticker: str | None = None,
+               saved_before: str | None = None, dry_run: bool = False) -> dict:
+    """Remove saved answers matching every given filter (at least one is required), e.g. after a vendor
+    corrected a ticker's history. ``saved_before``: an ISO date or time; rows saved earlier match."""
+    if not (tool or ticker or saved_before):
+        raise ValueError("name at least one of tool, ticker or saved_before (delete the file to clear everything)")
+    if saved_before:
+        datetime.fromisoformat(saved_before)        # reject a malformed date before touching anything
+    path = Path(cache_dir) / "e2_cache.sqlite"
+    if not path.is_file():
+        return {"matched": 0, "deleted": 0, "dry_run": dry_run}
+    with closing(sqlite3.connect(path, timeout=30)) as db, db:
+        matched = [(t, request) for t, request, saved_at, row_ticker, _v in _rows(db)
+                   if (tool is None or t == tool) and (ticker is None or row_ticker == ticker.upper())
+                   and (saved_before is None or (saved_at or "") < saved_before)]
+        if not dry_run:
+            db.executemany("DELETE FROM cache WHERE tool = ? AND request = ?", matched)
+    return {"matched": len(matched), "deleted": 0 if dry_run else len(matched), "dry_run": dry_run}
+
+
 def _main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -303,7 +408,22 @@ def _main(argv: list[str] | None = None) -> int:
     adopt.add_argument("--only-these-runs-used-this-cache", action="store_true",
                        help="you confirm no run outside --results-dir used this cache")
     adopt.add_argument("--dry-run", action="store_true")
+    show = sub.add_parser("info", help="what the cache holds")
+    show.add_argument("--cache-dir", required=True)
+    drop = sub.add_parser("invalidate", help="remove saved answers (e.g. after a vendor corrected past data)")
+    drop.add_argument("--cache-dir", required=True)
+    drop.add_argument("--tool")
+    drop.add_argument("--ticker")
+    drop.add_argument("--saved-before", help="ISO date/time: remove rows saved before it")
+    drop.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
+    if args.command == "info":
+        print(json.dumps(info(args.cache_dir), indent=2))
+        return 0
+    if args.command == "invalidate":
+        print(json.dumps(invalidate(args.cache_dir, tool=args.tool, ticker=args.ticker,
+                                    saved_before=args.saved_before, dry_run=args.dry_run), indent=2))
+        return 0
     report = adopt_legacy(args.cache_dir, args.results_dir, dry_run=args.dry_run,
                           only_these_runs=args.only_these_runs_used_this_cache)
     print(json.dumps(report, indent=2))

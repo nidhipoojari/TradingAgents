@@ -37,11 +37,16 @@ from _safety import fresh_dir, provenance, redact  # noqa: E402
 TICKER, DATE, ANALYST, DEPTH = "NVDA", "2026-10-23", "Market", "Shallow"
 OTHER_ANALYSTS = ("Sentiment", "News", "Fundamentals")
 MAX_CALLS, MAX_COST = 15, 0.04
-TERMINAL = ("completed", "failed", "cancelled", "budget_exceeded")
+# The validation run's analysis deadline: about twice the slowest healthy run measured offline (42.3 s: a
+# 12-call workflow with two recovered primary 503s), so it never rejects a successful analysis, while a
+# stuck one ends in half the 180 s production default.
+VALIDATION_DEADLINE_SECONDS = 90
+TERMINAL = ("completed", "failed", "cancelled", "budget_exceeded", "deadline_exceeded")
 
 
 # ------------------------------------------------------------------ pure logic (tested offline)
-def dashboard_env(out: Path, base: dict, *, max_calls=MAX_CALLS, max_cost=MAX_COST, extra=None) -> dict:
+def dashboard_env(out: Path, base: dict, *, max_calls=MAX_CALLS, max_cost=MAX_COST,
+                  deadline_seconds=VALIDATION_DEADLINE_SECONDS, extra=None) -> dict:
     """The dashboard's environment for this test: headless, no Alpaca keys, limits on, all output in ``out``."""
     env = dict(base)
     env.update({
@@ -54,6 +59,7 @@ def dashboard_env(out: Path, base: dict, *, max_calls=MAX_CALLS, max_cost=MAX_CO
         "TRADINGAGENTS_E2_CACHE": "true",
         "TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS": str(max_calls),
         "TRADINGAGENTS_DASHBOARD_MAX_COST_USD": str(max_cost),
+        "TRADINGAGENTS_ANALYSIS_DEADLINE_SECONDS": str(deadline_seconds),
         "TRADINGAGENTS_RESULTS_DIR": str(out / "results"),
         "TRADINGAGENTS_CACHE_DIR": str(out / "cache"),
         "TRADINGAGENTS_MEMORY_LOG_PATH": str(out / "memory" / "trading_memory.md"),
@@ -76,6 +82,8 @@ def classify(view: dict) -> str | None:
         return "completed"
     if "Stopped by the per-run limit" in alerts:
         return "budget_exceeded"
+    if "Stopped by the deadline" in alerts:
+        return "deadline_exceeded"
     if "The analysis failed" in alerts:
         return "failed"
     if re.search(r"analysis \S+ was cancelled", alerts):
@@ -90,10 +98,9 @@ def should_cancel(state: str | None, view: dict) -> bool:
 
 def preflight(env: dict, project_python: Path) -> list[str]:
     problems = []
-    try:
-        import playwright  # noqa: F401
-    except ImportError:
-        problems.append("Playwright is not importable by this Python (run the script with a Python that has it)")
+    browser_problem = check_browser()
+    if browser_problem:
+        problems.append(browser_problem)
     if not project_python.is_file():
         problems.append(f"project Python not found: {project_python}")
     dotenv = ROOT / ".env"
@@ -103,6 +110,31 @@ def preflight(env: dict, project_python: Path) -> list[str]:
     if not pricing:
         problems.append("E3_PRICING_JSON is not set: the dashboard refuses a cost limit without prices")
     return problems
+
+
+def check_browser() -> str | None:
+    """None when Playwright can launch headless Chromium here; otherwise what to do about it (offline)."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return ("Playwright is not installed for this Python: run scripts/smoke/setup_playwright.sh "
+                "(or pip install '.[e2e]'), then run this script with that Python")
+    try:
+        with sync_playwright() as p:
+            p.chromium.launch().close()
+    except Exception as exc:  # noqa: BLE001 - turned into advice below
+        text = str(exc)
+        if "Executable doesn't exist" in text or "playwright install" in text:
+            hint = "the browser is not installed: run scripts/smoke/setup_playwright.sh"
+        elif "error while loading shared libraries" in text or "libnss3" in text or "libasound" in text:
+            hint = ("Chromium's system libraries are missing: sudo apt-get install libnss3 libnspr4 libasound2t64, "
+                    "or scripts/smoke/setup_playwright.sh --user-libs and set LD_LIBRARY_PATH as it prints")
+        elif "not support" in text.lower():
+            hint = "unsupported OS build: on Ubuntu 26.04 set PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64"
+        else:
+            hint = "see the error"
+        return f"headless Chromium did not start ({hint}): {redact(text.splitlines()[0] if text else '')[:200]}"
+    return None
 
 
 def _dotenv_value(path: Path, name: str) -> str | None:
@@ -179,8 +211,16 @@ def drive(url: str, password: str, shots: Path, limit_seconds: float) -> dict:
         side = page.locator('[data-testid="stSidebar"]').inner_text()
         check("sidebar", "E2 data cache: on" in side and "E3 tracing: on" in side, re.sub(r"\s+", " ", side)[:250])
         check("paper_trading_off", "ALPACA_API_KEY" in side, "no Alpaca keys: paper trading switched off")
-        check("limits_shown", f"Per-run limits: {MAX_CALLS} LLM calls, ${MAX_COST:.2f} estimated cost" in side,
-              re.findall(r"Per-run limits:[^\n]*", side))
+        # The limits panel, before the run: the deadline, the cost ceiling, and the call limit for one
+        # analyst at Shallow depth (the first cell of the table's first row).
+        ceiling = page.get_by_label("Estimated-cost ceiling for the next run ($)").input_value()
+        # This script fixes the limit (TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS), so the panel states it;
+        # without that it shows the derived table, whose first cell is one analyst at Shallow depth.
+        calls = re.search(r"LLM-call limit:\s*(\d+)", side) or re.search(r"\b1\s+(\d+)\s+\d+\s+\d+", side)
+        check("limits_shown", f"deadline {VALIDATION_DEADLINE_SECONDS:g} s" in side and float(ceiling) == MAX_COST
+              and calls is not None and int(calls.group(1)) == MAX_CALLS,
+              {"ceiling": ceiling, "market_only_shallow_calls": calls.group(1) if calls else None,
+               "time": re.findall(r"Time:[^\n]*", side)[:1]})
         page.get_by_label("Username").fill("live-tester")
         page.get_by_label("Password", exact=True).fill(password)
         page.get_by_role("button", name="Sign in").click()
@@ -252,6 +292,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default=str(ROOT / "results" / "phase3_smoke" / f"dashboard_live_{time.strftime('%Y%m%d_%H%M%S')}"))
     parser.add_argument("--port", type=int, default=8599)
     parser.add_argument("--limit-seconds", type=float, default=300.0)
+    parser.add_argument("--deadline-seconds", type=float, default=VALIDATION_DEADLINE_SECONDS,
+                        help="the analysis deadline for this run (production default: 180)")
     parser.add_argument("--project-python", default=str(ROOT / ".venv" / "bin" / "python"))
     parser.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
                         help="extra dashboard environment (offline testing with scripted models)")
@@ -289,7 +331,7 @@ def main(argv: list[str] | None = None) -> int:
         print("could not create the test user:", redact(created.stderr)[-300:])
         return 1
     os.chmod(password_file, 0o600)
-    env = dashboard_env(out, os.environ, extra=extra)
+    env = dashboard_env(out, os.environ, deadline_seconds=args.deadline_seconds, extra=extra)
     launcher = project_python.with_name("tradingagents-dashboard")
     with (out / "server.log").open("w") as log:
         server = subprocess.Popen([str(launcher), "--server.port", str(args.port)], cwd=ROOT, env=env,

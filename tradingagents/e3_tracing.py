@@ -36,6 +36,22 @@ def _model_name(serialized: dict[str, Any] | None, metadata: dict[str, Any] | No
     return "unknown"
 
 
+def error_code(error: BaseException | None) -> int | None:
+    """The HTTP status of a provider error, when the error carries one (itself or its cause).
+
+    google-genai errors and LangChain's Google wrappers carry ``code``; others may carry
+    ``status_code``. None when no status is attached; nothing is guessed from the text.
+    """
+    seen = 0
+    while error is not None and seen < 4:
+        for attribute in ("code", "status_code"):
+            value = getattr(error, attribute, None)
+            if isinstance(value, int) and 100 <= value <= 599:
+                return value
+        error, seen = error.__cause__ or error.__context__, seen + 1
+    return None
+
+
 def _agent_name(metadata: dict[str, Any] | None) -> str:
     meta = metadata or {}
     for key in ("langgraph_node", "agent_name", "agent", "node"):
@@ -66,6 +82,47 @@ def _tokens(result: Any) -> tuple[int | None, int | None]:
     out = usage.get("output_tokens", usage.get("completion_tokens"))
     return (int(inp) if inp is not None else None,
             int(out) if out is not None else None)
+
+
+def _token_details(result: Any) -> tuple[int | None, int | None]:
+    """Provider-reported cached input and reasoning tokens (Phase 3), or None when not reported.
+
+    LangChain's standard ``usage_metadata`` carries them as ``input_token_details.cache_read`` and
+    ``output_token_details.reasoning`` (Gemini: cached_content_token_count / thoughts_token_count, the
+    latter already included in output_tokens); OpenAI's raw ``token_usage`` as ``prompt_tokens_details.
+    cached_tokens`` / ``completion_tokens_details.reasoning_tokens``.
+    """
+    if result is None:
+        return None, None
+    cached = reasoning = None
+    usage = getattr(result, "llm_output", None) or {}
+    if isinstance(usage, dict):
+        raw = usage.get("token_usage") or usage.get("usage") or {}
+        if isinstance(raw, dict):
+            cached = (raw.get("prompt_tokens_details") or {}).get("cached_tokens")
+            reasoning = (raw.get("completion_tokens_details") or {}).get("reasoning_tokens")
+    for generation_group in getattr(result, "generations", []) or []:
+        for generation in generation_group:
+            info = getattr(getattr(generation, "message", None), "usage_metadata", None)
+            if isinstance(info, dict):
+                cached = cached if cached is not None else (info.get("input_token_details") or {}).get("cache_read")
+                reasoning = (reasoning if reasoning is not None
+                             else (info.get("output_token_details") or {}).get("reasoning"))
+                break
+        break
+    return (int(cached) if cached is not None else None, int(reasoning) if reasoning is not None else None)
+
+
+def _call_cost(event: dict, entry: dict) -> float:
+    """USD for one call. Cached input is priced at ``cached_input_per_million_usd`` when the pricing file
+    gives it, else at the full input price (conservative: never below the provider's charge for tokens)."""
+    cached = event.get("cached_input_tokens") or 0
+    if "cached_input_per_million_usd" in entry and 0 < cached <= event["input_tokens"]:
+        input_cost = ((event["input_tokens"] - cached) * entry["input_per_million_usd"]
+                      + cached * entry["cached_input_per_million_usd"])
+    else:
+        input_cost = event["input_tokens"] * entry["input_per_million_usd"]
+    return (input_cost + event["output_tokens"] * entry["output_per_million_usd"]) / 1_000_000
 
 
 def _timeline(observations: list[dict[str, Any]], wall_time_seconds: float) -> dict[str, Any] | None:
@@ -104,6 +161,20 @@ def _timeline(observations: list[dict[str, Any]], wall_time_seconds: float) -> d
     }
 
 
+def _incomplete_note(observed: bool, pricing, no_usage_calls: int, no_price_calls: int) -> str:
+    """Why estimated_cost_usd is None, naming the actual cause (a call without usage is not a missing price)."""
+    if not observed:
+        return "Not calculated: no LLM call was observed."
+    if not pricing:
+        return "Not calculated: no model pricing was supplied (E3_PRICING_JSON)."
+    reasons = []
+    if no_usage_calls:
+        reasons.append(f"{no_usage_calls} call(s) reported no token usage (no tokens are assumed for them)")
+    if no_price_calls:
+        reasons.append(f"{no_price_calls} call(s) used a model with no price in the pricing file")
+    return "Not calculated: " + "; ".join(reasons) + "."
+
+
 class E3MetricsCallback(BaseCallbackHandler):
     """Collect LLM-call duration, model, errors, and provider-reported token counts."""
 
@@ -132,7 +203,8 @@ class E3MetricsCallback(BaseCallbackHandler):
 
     def _finish(self, run_id: Any, *, error: str | None = None,
                 input_tokens: int | None = None,
-                output_tokens: int | None = None) -> None:
+                output_tokens: int | None = None, code: int | None = None,
+                details: tuple[int | None, int | None] = (None, None)) -> None:
         with self.lock:
             prior = self.started.pop(str(run_id), None)
             if prior is None:
@@ -147,14 +219,22 @@ class E3MetricsCallback(BaseCallbackHandler):
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
                 "error": error,
+                "error_code": code,
+                "cached_input_tokens": details[0],
+                "reasoning_tokens": details[1],
             })
 
     def on_llm_end(self, response: Any, *, run_id: Any, **kwargs: Any) -> None:
         inp, out = _tokens(response)
-        self._finish(run_id, input_tokens=inp, output_tokens=out)
+        self._finish(run_id, input_tokens=inp, output_tokens=out, details=_token_details(response))
 
     def on_llm_error(self, error: BaseException, *, run_id: Any, **kwargs: Any) -> None:
-        self._finish(run_id, error=f"{type(error).__name__}: {error}")
+        # Phase 3: LangChain passes what was generated before the error (``response``); a streamed
+        # call that failed mid-way can carry the provider's usage there. Recorded when present,
+        # otherwise left None: an unreported usage is not zero.
+        inp, out = _tokens(kwargs.get("response")) if kwargs.get("response") is not None else (None, None)
+        self._finish(run_id, error=f"{type(error).__name__}: {error}", input_tokens=inp, output_tokens=out,
+                     code=error_code(error))
 
     def summary(self, *, ticker: str, analysis_date: str, status: str,
                 wall_time_seconds: float, decision: str | None = None,
@@ -168,7 +248,9 @@ class E3MetricsCallback(BaseCallbackHandler):
         cost_total = 0.0
         cost_complete = bool(observations) and bool(pricing)
         priced_calls = 0
-        unpriced_calls = 0
+        unpriced_calls = 0          # Phase 2 field: calls not priced, for either reason below
+        no_usage_calls = 0          # the provider reported no tokens (e.g. a failed 429)
+        no_price_calls = 0          # tokens reported, but the model has no price
 
         for event in observations:
             entry = (pricing or {}).get(event["model"])
@@ -182,12 +264,13 @@ class E3MetricsCallback(BaseCallbackHandler):
             ):
                 cost_complete = False
                 unpriced_calls += 1
+                if event["input_tokens"] is None or event["output_tokens"] is None:
+                    no_usage_calls += 1
+                else:
+                    no_price_calls += 1
                 continue
 
-            cost_total += (
-                event["input_tokens"] * entry["input_per_million_usd"]
-                + event["output_tokens"] * entry["output_per_million_usd"]
-            ) / 1_000_000
+            cost_total += _call_cost(event, entry)
 
             priced_calls += 1
 
@@ -208,8 +291,7 @@ class E3MetricsCallback(BaseCallbackHandler):
                     or "input_per_million_usd" not in entry or "output_per_million_usd" not in entry):
                 successful_complete = False
                 continue
-            successful_cost += (event["input_tokens"] * entry["input_per_million_usd"]
-                                + event["output_tokens"] * entry["output_per_million_usd"]) / 1_000_000
+            successful_cost += _call_cost(event, entry)
 
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for record in observations:
@@ -246,6 +328,12 @@ class E3MetricsCallback(BaseCallbackHandler):
                     "input_tokens": event["input_tokens"],
                     "output_tokens": event["output_tokens"],
                     "had_error": event["error"] is not None,
+                    # Phase 3 (additive): whether the provider reported usage; None tokens mean "not reported".
+                    "usage_reported": event["input_tokens"] is not None and event["output_tokens"] is not None,
+                    "error_code": event.get("error_code"),
+                    # Phase 3 (additive): provider-reported detail; None = not reported.
+                    "cached_input_tokens": event.get("cached_input_tokens"),
+                    "reasoning_tokens": event.get("reasoning_tokens"),
                 }
                 for event in observations
             ],
@@ -256,9 +344,30 @@ class E3MetricsCallback(BaseCallbackHandler):
             "priced_llm_calls": priced_calls,
             "unpriced_llm_calls": unpriced_calls,
             "cost_note": ("Estimate from supplied model pricing and reported tokens; does not include tools or infrastructure."
-                          if cost_complete else "Not calculated: supply pricing for every model and ensure every LLM callback includes token usage."),
+                          if cost_complete else _incomplete_note(bool(observations), pricing, no_usage_calls,
+                                                                  no_price_calls)),
             "failed_calls_without_usage": failed_without_usage,
+            "failed_calls_with_usage": sum(1 for e in observations if e["error"] is not None
+                                           and e["input_tokens"] is not None and e["output_tokens"] is not None),
             "estimated_cost_usd_successful_calls": round(successful_cost, 6) if successful_complete else None,
+            # Phase 3 (additive): what each cost figure is. An estimate is never labelled a charge.
+            "tokens_reported": {
+                "input": sum(e["input_tokens"] or 0 for e in observations),
+                "output": sum(e["output_tokens"] or 0 for e in observations),
+                "cached_input": sum(e.get("cached_input_tokens") or 0 for e in observations),
+                "reasoning": sum(e.get("reasoning_tokens") or 0 for e in observations),
+                "calls_without_usage": sum(1 for e in observations
+                                           if e["input_tokens"] is None or e["output_tokens"] is None),
+            },
+            "cost_basis": {
+                "estimated_cost_usd": ("estimate: provider-reported tokens x the prices in E3_PRICING_JSON; "
+                                       "not a charge"),
+                "cached_input": ("priced at cached_input_per_million_usd where the pricing file gives it, "
+                                 "otherwise at the full input price (conservative)"),
+                "actual_billing_usd": None,
+                "actual_billing_status": ("not verified: providers do not report a charge per request; compare "
+                                          "with your billing export (scripts/reconcile_billing.py)"),
+            },
             "limitations": [
                 "Unattributed events may appear when the agent/node is absent from callback metadata.",
                 "Tokens are counted only when reported by the underlying provider.",

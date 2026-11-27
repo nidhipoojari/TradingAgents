@@ -1,0 +1,2 @@
+{"label": "current", "mode": "service", "profile": "p2_03_NVDA", "e2": "warm", "e3": "on", "n": 1, "median": 25.8486, "min": 25.8486, "max": 25.8486, "p95": 25.8486, "llm_calls": [10]}
+{"label": "current", "mode": "service", "profile": "p2_03_NVDA", "e2": "warm", "e3": "on", "n": 5, "median": 25.9309, "min": 25.9113, "max": 26.0093, "p95": 26.0093, "llm_calls": [10]}

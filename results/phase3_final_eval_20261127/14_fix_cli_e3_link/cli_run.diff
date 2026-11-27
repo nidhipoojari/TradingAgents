@@ -1,0 +1,3 @@
+390a391,392
+>         # The run record was written before this save; link the summary so get_run_metrics can show its cost.
+>         service.attach_e3_summary(request, result.run_id, result.e3.saved_path)

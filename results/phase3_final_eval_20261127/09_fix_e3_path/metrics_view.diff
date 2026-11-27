@@ -1,0 +1,13 @@
+198c198,202
+<                 "unreported_usage_estimate_usd", "budget_cost_usd", "exhausted", "reason")
+---
+>                 "unreported_usage_estimate_usd", "budget_cost_usd", "exhausted", "reason",
+>                 # How the conservative figure was reached: failed calls and calls without usage are estimated,
+>                 # never given provider token counts they did not report.
+>                 "failed_calls", "failed_calls_with_usage", "calls_without_usage", "unpriced_calls", "basis")
+> E2_OFF = {"enabled": False, "note": "E2 was off for this run, so no cache counters were recorded"}
+223c227,228
+<         "e2_cache": usage.get("e2_cache"),
+---
+>         # The service records e2_cache only when E2 is on: its absence means off, not "no data".
+>         "e2_cache": usage.get("e2_cache") or E2_OFF,

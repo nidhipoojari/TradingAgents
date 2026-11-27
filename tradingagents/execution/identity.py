@@ -43,7 +43,7 @@ import threading
 import time
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 AUTH_REQUIRED_ENV = "TRADINGAGENTS_REQUIRE_ORDER_AUTH"
@@ -74,11 +74,29 @@ class Identity:
     authenticated_at: str
     session: str = field(default="", repr=False)     # the server-side session token, if any
     confirmed_at: str = ""                           # last password confirmation (step-up)
+    # The same two moments on this process's monotonic clock. Wall-clock times are kept (they also count a
+    # suspended machine's sleep); these stop a backward clock step from extending a sign-in or a confirmation.
+    # Comparable only within this process, as the identity itself is (its signing key exists only here).
+    authenticated_mono: float = 0.0
+    confirmed_mono: float = 0.0
     signature: str = field(default="", repr=False)
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _monotonic() -> float:
+    return time.monotonic()
+
+
+def _within(wall_since: datetime, mono_since: float, limit_seconds: float) -> bool:
+    """Both clocks agree that no more than ``limit_seconds`` have passed and the start is not in the future.
+
+    The stricter clock wins, so a clock step in either direction can shorten a window but never extend it."""
+    wall_age = (_now() - wall_since).total_seconds()
+    mono_age = _monotonic() - mono_since
+    return 0 <= wall_age <= limit_seconds and 0 <= mono_age <= limit_seconds
 
 
 def auth_required() -> bool:
@@ -91,9 +109,9 @@ def _sign(identity: Identity) -> str:
 
 
 def _issue(subject: str, method: str, session: str = "") -> Identity:
-    now = _now().isoformat(timespec="seconds")
+    now, mono = _now().isoformat(timespec="seconds"), _monotonic()
     identity = Identity(subject=subject.strip(), method=method, authenticated_at=now, session=session,
-                        confirmed_at=now)
+                        confirmed_at=now, authenticated_mono=mono, confirmed_mono=mono)
     return replace(identity, signature=_sign(identity))
 
 
@@ -107,7 +125,7 @@ def confirmed_recently(identity: Identity, seconds: int = STEP_UP_SECONDS) -> bo
         confirmed = datetime.fromisoformat(identity.confirmed_at or identity.authenticated_at)
     except (TypeError, ValueError):
         return False
-    return timedelta(0) <= _now() - confirmed <= timedelta(seconds=seconds) + timedelta(seconds=5)
+    return _within(confirmed, identity.confirmed_mono, seconds + 5)
 
 
 def verify_identity(identity, store: SessionStore | None = None) -> list[str]:
@@ -123,11 +141,17 @@ def verify_identity(identity, store: SessionStore | None = None) -> list[str]:
     if identity.method not in AUTHENTICATED_METHODS or not identity.subject:
         return ["The sign-in has no authenticated user; sign in again."]
     try:
-        age = _now() - datetime.fromisoformat(identity.authenticated_at)
+        authenticated = datetime.fromisoformat(identity.authenticated_at)
     except ValueError:
         return ["The sign-in time cannot be read; sign in again."]
-    if age > timedelta(seconds=SESSION_TTL_SECONDS):
+    # A future sign-in time (the clock stepped back) is allowed a minute's slack, then refused; the monotonic
+    # age, which no clock step changes, must also be within the lifetime.
+    wall_age = (_now() - authenticated).total_seconds()
+    mono_age = _monotonic() - identity.authenticated_mono
+    if wall_age > SESSION_TTL_SECONDS or mono_age > SESSION_TTL_SECONDS or mono_age < 0:
         return ["The sign-in has expired; sign in again."]
+    if wall_age < -60:
+        return ["The sign-in time is in the future (the clock changed); sign in again."]
     if store is not None:
         if not identity.session:
             return ["The sign-in has no server-side session; sign in again."]
@@ -254,8 +278,14 @@ def confirm_password(identity: Identity, password: str, users: Mapping[str, str]
         if store is not None:
             store.record_attempt(key, ok=False)
         raise AuthError("That password is not right; the order was not approved.")
-    confirmed = replace(identity, confirmed_at=_now().isoformat(timespec="seconds"), signature="")
+    confirmed = replace(identity, confirmed_at=_now().isoformat(timespec="seconds"), confirmed_mono=_monotonic(),
+                        signature="")
     return replace(confirmed, signature=_sign(confirmed))
+
+
+# Each open session's monotonic (created, last seen), in this process; see SessionStore.check_ref.
+_SESSION_MONO: dict[str, list[float]] = {}
+_SESSION_MONO_LOCK = threading.Lock()
 
 
 class SessionStore:
@@ -292,6 +322,8 @@ class SessionStore:
     def open(self, subject: str, method: str) -> str:
         token = secrets.token_urlsafe(32)
         now = self._ts()
+        with _SESSION_MONO_LOCK:
+            _SESSION_MONO[session_ref(token)] = [_monotonic(), _monotonic()]
         with self._db() as db:
             db.execute("INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, 0)",
                        (session_ref(token), subject, method, _INSTANCE, now, now))
@@ -312,12 +344,21 @@ class SessionStore:
                 return ["The session was signed out; sign in again."]
             if instance != _INSTANCE:
                 return ["The dashboard restarted since this sign-in; sign in again."]
-            if now - created > SESSION_TTL_SECONDS:
+            with _SESSION_MONO_LOCK:
+                mono = _SESSION_MONO.get(ref)
+            if mono is None:        # opened by no store in this process (sessions never outlive their process)
+                return ["The session is unknown to this dashboard start; sign in again."]
+            mono_now = _monotonic()
+            if now - created > SESSION_TTL_SECONDS or mono_now - mono[0] > SESSION_TTL_SECONDS:
                 return ["The session has expired; sign in again."]
-            if now - last_seen > IDLE_TIMEOUT_SECONDS:
+            if now - last_seen > IDLE_TIMEOUT_SECONDS or mono_now - mono[1] > IDLE_TIMEOUT_SECONDS:
                 return ["The session was idle too long; sign in again."]
+            if now < created - 60:
+                return ["The session time is in the future (the clock changed); sign in again."]
             if touch:
                 db.execute("UPDATE sessions SET last_seen = ? WHERE ref = ?", (now, ref))
+                with _SESSION_MONO_LOCK:
+                    mono[1] = mono_now
         return []
 
     def revoke(self, token: str) -> None:

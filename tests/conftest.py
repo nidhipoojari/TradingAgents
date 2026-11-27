@@ -29,6 +29,9 @@ def _blank_settings_overlay():
 _blank_settings_overlay()
 # The suite runs analyses in-process; tests of the worker process install offline fakes in the child.
 os.environ["TRADINGAGENTS_ANALYSIS_WORKER"] = "inline"
+# MCP runs have a call limit and a $0.04 cost limit by default; the cost limit needs E3 pricing, which the
+# suite clears above. Its call limit stays on; tests of the MCP cost limit (test_mcp_budget.py) set their own.
+os.environ["TRADINGAGENTS_MCP_MAX_COST_USD"] = "off"
 
 
 def _own_file_locations():

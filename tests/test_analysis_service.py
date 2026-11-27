@@ -323,3 +323,29 @@ def test_the_cli_runs_through_the_service_and_writes_what_it_did(tmp_path, monke
     log = TradingMemoryLog({"memory_log_path": str(tmp_path / "memory" / "trading_memory.md")})
     assert [e["rating"] for e in log.load_entries()] == ["Overweight"]
     assert buffer.agent_status and set(buffer.agent_status.values()) == {"completed"}
+
+
+@pytest.mark.unit
+def test_a_deferred_e3_summary_is_linked_into_the_run_record(tmp_path):
+    """The CLI saves E3 after the record is written (defer_e3_save); the live CLI run 20261127-113820-f97deed2's
+    record therefore named no E3 summary and get_run_metrics reported its cost as unavailable (found 2026-11-27)."""
+    from tradingagents import run_store
+
+    results = tmp_path / "results"
+    request = service.AnalysisRequest(ticker="NVDA", trade_date="2026-01-09", source="cli", analysts=("market",),
+                                      config={"results_dir": str(results)})
+    record = run_store.build_record(run_id="r-cli", source="cli", status="completed", ticker="NVDA",
+                                    trade_date="2026-01-09", asset_type="stock", analysts=("market",),
+                                    usage={"llm_calls": 10})
+    run_store.save(results, record)
+    summary = tmp_path / "e3" / "r-cli_e3.json"
+    summary.parent.mkdir()
+    summary.write_text(json.dumps({"run_id": "r-cli", "estimated_cost_usd": 0.0205, "per_agent": {"Trader": {}}}))
+
+    assert service.attach_e3_summary(request, "r-cli", summary) is True
+    saved = run_store.load(results, "r-cli")
+    assert saved["e3_summary_path"] == str(summary.absolute())
+    assert saved["usage"]["e3_cost"]["estimated_cost_usd"] == 0.0205 and saved["usage"]["llm_calls"] == 10
+
+    assert service.attach_e3_summary(request, "r-cli", None) is False            # E3 off: nothing to link
+    assert service.attach_e3_summary(request, "no-such-run", summary) is False   # never raises

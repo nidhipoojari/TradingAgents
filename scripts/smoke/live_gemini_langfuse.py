@@ -239,7 +239,7 @@ def _langfuse_observations(run_id: str, timeout: float = 120.0) -> int:
 def check_run(report: Report, result, label: str, *, max_cost: float, deep_model: str,
               force_fallback: bool, quick_model: str | None = None,
               allowed_models: tuple = ()) -> dict:
-    from tradingagents.e1_routing import ROUTING_TABLE
+    from tradingagents.e1_routing import ROUTING_TABLE, summarize_events as e1_summarize
 
     usage = json.loads(result.usage_path.read_text(encoding="utf-8"))
     report.add(f"{label}.files.token_usage", usage.get("run_id") == result.run_id and usage.get("source") == "api",
@@ -280,7 +280,8 @@ def check_run(report: Report, result, label: str, *, max_cost: float, deep_model
                    "deep: " + ", ".join(sorted(a for a, r in per_agent.items() if deep_model in r["models"])))
     if force_fallback:
         report.add(f"{label}.e1.fallback", bool(result.fallback_events) and summary.get("observed_llm_errors", 0) > 0,
-                   f"{len(result.fallback_events)} switches, {summary.get('observed_llm_errors')} failed calls")
+                   f"{e1_summarize(result.fallback_events)['backup_calls']} switches, "
+                   f"{summary.get('observed_llm_errors')} failed calls")
     report.add(f"{label}.time.wall", summary.get("wall_time_seconds", 0) <= 300,
                f"{summary.get('wall_time_seconds')} s", warn=True)
     return usage

@@ -125,6 +125,33 @@ offline pre-flight and exits 2.
 
 Exit code: 0 completed with every check passed, 1 otherwise, 2 not run. Report: `live_dashboard_report.json`.
 
+**Playwright setup (optional, testing only).** `scripts/smoke/setup_playwright.sh [--python PATH] [--user-libs]`
+installs the pinned `e2e` extra (`playwright==1.52.0`) into that Python and downloads headless Chromium.
+Then run the script with that Python. The app never needs Playwright.
+
+Where it has been verified: Ubuntu 26.04 under WSL2 (x86-64). Two workarounds were needed there:
+- Playwright 1.52 has no Chromium build for Ubuntu 26.04, so the setup sets
+  `PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64`, which uses the 24.04 build. Set the same variable when
+  running if you install by hand.
+- Chromium needs `libnss3`, `libnspr4` and `libasound2t64`: install them with apt, or use `--user-libs` and
+  set `LD_LIBRARY_PATH` as it prints.
+
+Other platforms Playwright supports should need neither workaround, but they have not been tested here. The
+script's pre-flight launches the browser and says which fix is missing.
+
+**Model-call bounds during the run.**
+- Calls: the primary gets no retries; the backup gets one retry (provider-aware) and a 30 s timeout per request.
+- Deadlines: a 60 s deadline per model step and 180 s for the analysis, enforced in the worker and by the parent.
+- Target: 41 s from the click, reported as met or missed.
+- Budget: this script fixes 15 LLM calls and $0.04. The sidebar shows the fixed limit, the cost ceiling and
+  the deadline before Run, and the script checks all three.
+- Hidden SDK retries are counted (`sdk_retries_observed`), or labelled unavailable for providers that do not
+  expose them.
+- A deadline stop is recognised as the terminal state `deadline_exceeded`.
+
+Expected time, from the offline replay of the approved smoke run's latencies: about 26 s from the click to the
+result. A real run differs with the provider's own latency.
+
 ## Approval
 
 Run nothing here without approval for that specific test: test 1 makes billable Gemini calls and sends
@@ -240,6 +267,12 @@ not rewritten, so runs 2 and 3 still show "(failed)" for these requests.
 - The dashboard and MCP server were not driven live; they use the same shared service and broker, tested
   offline (Streamlit `AppTest`, an in-memory MCP client).
 
+### Validation deadline
+
+The live dashboard script sets `TRADINGAGENTS_ANALYSIS_DEADLINE_SECONDS=90` for its run (`--deadline-seconds`
+to change it). The production default stays 180 s. 90 s is about twice the slowest healthy replayed run
+(42.3 s); see PHASE3_CHANGES.md, "Performance against the actual Phase 2 baseline".
+
 ## Live F1 dashboard run (2026-11-23): did not complete (Gemini 503)
 
 `results/phase3_smoke/dashboard_live_20261123_113727` (git-ignored, kept), commit `7a2412a`, run
@@ -262,3 +295,18 @@ not rewritten, so runs 2 and 3 still show "(failed)" for these requests.
   run had already ended).
 - **Gaps found and fixed (offline) afterwards.** Failed runs now keep their records, the driver detects every
   terminal state, and the launcher starts Streamlit headless. See "Failed-run reporting" in `PHASE3_CHANGES.md`.
+
+## Live F1 dashboard run (2026-11-24): did not complete (Gemini 503 on both models)
+
+Approved as exactly one run; not retried. Preflight passed (1850 tests, Ruff, Playwright, keys present by name,
+Alpaca keys blanked, fresh folder, 90 s validation deadline, 60 s breaker).
+
+- Run `20261124-084055-53b8fbf5`, NVDA 2026-10-23, Market, Shallow, 15 calls / $0.04.
+- Market analyst call 1 succeeded (1.31 s, 1,853 in / 140 out tokens); call 2: gemini-3.5-flash-lite 503
+  after 1.18 s; E1 switched in 3.5 ms and the breaker opened; the backup gemini-3.1-flash-lite also 503 after
+  1.94 s (with one SDK retry). Category `provider_unavailable`; 8.4 s from Run to the failure on the page.
+- 3 LLM calls, 4 requests to Gemini; budget $0.002859 of $0.04 (reconciles with E3's $0.000906 plus $0.001954
+  for the two failed calls); E2 0 hits, 5 misses, 5 saved; Langfuse flush ok; no browser errors or outside
+  hosts; no processes left; no credentials in the output.
+- Found: the dashboard's switch count (3 instead of 1) and the breaker's tier label; both fixed (PHASE3_CHANGES.md).
+- Evidence: `results/phase3_smoke/dashboard_live_20261124_084043/`. Verdict: FAIL (provider), no live timing.

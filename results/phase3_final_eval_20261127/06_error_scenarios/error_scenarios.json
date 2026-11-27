@@ -1,0 +1,326 @@
+{
+  "work_dir": "/tmp/errors-5aauwt02",
+  "rows": [
+    {
+      "label": "baseline, cold cache",
+      "env": {},
+      "run_id": "20261127-110726-56b1f6d6",
+      "outcome": "completed",
+      "rating": "Overweight",
+      "llm_calls": 10,
+      "e2_cache": {
+        "hits": 0,
+        "misses": 2,
+        "skipped": 0,
+        "hit_rate_pct": 0.0
+      },
+      "e1": {
+        "backup_calls": 0,
+        "switches": 0,
+        "breaker_skips": 0,
+        "circuit_opens": 0,
+        "backup_failures": 0,
+        "other": 0
+      },
+      "market_report_head": "Report.\n\n**Rating**: Overweight\n\nFINAL TRANSACTION PROPOSAL: **BUY**",
+      "e3_summary": true,
+      "seconds": 1.66,
+      "run_record": "completed"
+    },
+    {
+      "label": "network down for market data, E2 warm (same ticker/date)",
+      "env": {
+        "EVAL_VENDOR": "network"
+      },
+      "run_id": "20261127-110727-8b711f93",
+      "outcome": "completed",
+      "rating": "Overweight",
+      "llm_calls": 10,
+      "e2_cache": {
+        "hits": 2,
+        "misses": 0,
+        "skipped": 0,
+        "hit_rate_pct": 100.0
+      },
+      "e1": {
+        "backup_calls": 0,
+        "switches": 0,
+        "breaker_skips": 0,
+        "circuit_opens": 0,
+        "backup_failures": 0,
+        "other": 0
+      },
+      "market_report_head": "Report.\n\n**Rating**: Overweight\n\nFINAL TRANSACTION PROPOSAL: **BUY**",
+      "e3_summary": true,
+      "seconds": 1.72,
+      "run_record": "completed"
+    },
+    {
+      "label": "network down for market data, E2 cold",
+      "env": {
+        "EVAL_VENDOR": "network"
+      },
+      "run_id": "20261127-110729-5e4b3d76",
+      "outcome": "completed",
+      "rating": "Overweight",
+      "llm_calls": 10,
+      "e2_cache": {
+        "hits": 0,
+        "misses": 2,
+        "skipped": 0,
+        "hit_rate_pct": 0.0
+      },
+      "e1": {
+        "backup_calls": 0,
+        "switches": 0,
+        "breaker_skips": 0,
+        "circuit_opens": 0,
+        "backup_failures": 0,
+        "other": 0
+      },
+      "market_report_head": "Report.\n\n**Rating**: Overweight\n\nFINAL TRANSACTION PROPOSAL: **BUY**",
+      "e3_summary": true,
+      "seconds": 2.05,
+      "run_record": "completed"
+    },
+    {
+      "label": "untyped ConnectionError reaching the router, E2 cold (not what real vendors raise)",
+      "env": {
+        "EVAL_VENDOR": "raw"
+      },
+      "run_id": "20261127-110731-e6875c09",
+      "outcome": "failed",
+      "category": "error",
+      "hint": null,
+      "message": "ConnectionError: [Errno 101] Network is unreachable",
+      "partial_llm_calls": 1,
+      "partial_failed": 0,
+      "seconds": 0.16,
+      "run_record": "failed"
+    },
+    {
+      "label": "network down for the LLM provider (main and backup)",
+      "env": {
+        "EVAL_MAIN": "network",
+        "EVAL_BACKUP": "network"
+      },
+      "run_id": "20261127-110731-85a8ec89",
+      "outcome": "failed",
+      "category": "error",
+      "hint": null,
+      "message": "ConnectError: [Errno -3] Temporary failure in name resolution",
+      "partial_llm_calls": 2,
+      "partial_failed": 2,
+      "seconds": 1.97,
+      "run_record": "failed"
+    },
+    {
+      "label": "main model 429 rate limit, backup healthy",
+      "env": {
+        "EVAL_MAIN": "429"
+      },
+      "run_id": "20261127-110733-b0cfc062",
+      "outcome": "completed",
+      "rating": "Overweight",
+      "llm_calls": 11,
+      "e2_cache": {
+        "hits": 2,
+        "misses": 0,
+        "skipped": 0,
+        "hit_rate_pct": 100.0
+      },
+      "e1": {
+        "backup_calls": 10,
+        "switches": 1,
+        "breaker_skips": 9,
+        "circuit_opens": 1,
+        "backup_failures": 0,
+        "other": 0
+      },
+      "market_report_head": "Report.\n\n**Rating**: Overweight\n\nFINAL TRANSACTION PROPOSAL: **BUY**",
+      "e3_summary": true,
+      "seconds": 0.25,
+      "run_record": "completed"
+    },
+    {
+      "label": "main model quota exhausted, backup healthy",
+      "env": {
+        "EVAL_MAIN": "quota"
+      },
+      "run_id": "20261127-110734-aa196641",
+      "outcome": "completed",
+      "rating": "Overweight",
+      "llm_calls": 11,
+      "e2_cache": {
+        "hits": 2,
+        "misses": 0,
+        "skipped": 0,
+        "hit_rate_pct": 100.0
+      },
+      "e1": {
+        "backup_calls": 10,
+        "switches": 1,
+        "breaker_skips": 9,
+        "circuit_opens": 1,
+        "backup_failures": 0,
+        "other": 0
+      },
+      "market_report_head": "Report.\n\n**Rating**: Overweight\n\nFINAL TRANSACTION PROPOSAL: **BUY**",
+      "e3_summary": true,
+      "seconds": 1.7,
+      "run_record": "completed"
+    },
+    {
+      "label": "main model 503, backup healthy (E1 forced failure)",
+      "env": {
+        "EVAL_MAIN": "503"
+      },
+      "run_id": "20261127-110735-6bf6642d",
+      "outcome": "completed",
+      "rating": "Overweight",
+      "llm_calls": 11,
+      "e2_cache": {
+        "hits": 2,
+        "misses": 0,
+        "skipped": 0,
+        "hit_rate_pct": 100.0
+      },
+      "e1": {
+        "backup_calls": 10,
+        "switches": 1,
+        "breaker_skips": 9,
+        "circuit_opens": 1,
+        "backup_failures": 0,
+        "other": 0
+      },
+      "market_report_head": "Report.\n\n**Rating**: Overweight\n\nFINAL TRANSACTION PROPOSAL: **BUY**",
+      "e3_summary": true,
+      "seconds": 0.23,
+      "run_record": "completed"
+    },
+    {
+      "label": "main and backup 429",
+      "env": {
+        "EVAL_MAIN": "429",
+        "EVAL_BACKUP": "429"
+      },
+      "run_id": "20261127-110735-34e67e9d",
+      "outcome": "failed",
+      "category": "rate_limited",
+      "hint": "Too many requests in a short time; the limit clears by itself. Try again shortly. The provider asked to wait 7 s.",
+      "message": "RuntimeError: 429 RESOURCE_EXHAUSTED: Resource has been exhausted (e.g. check quota). Please retry in 7s.",
+      "partial_llm_calls": 2,
+      "partial_failed": 2,
+      "seconds": 1.46,
+      "run_record": "failed"
+    },
+    {
+      "label": "main and backup quota exhausted",
+      "env": {
+        "EVAL_MAIN": "quota",
+        "EVAL_BACKUP": "quota"
+      },
+      "run_id": "20261127-110737-67ef1833",
+      "outcome": "failed",
+      "category": "quota_exhausted",
+      "hint": "The model's quota is used up (a daily, monthly or billing limit), so retrying will not help. Wait for the quota to reset, choose another model, or configure an E1 backup on another provider (TRADINGAGENTS_QUICK_FALLBACK_PROVIDER / _DEEP_).",
+      "message": "RuntimeError: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details.\\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.5-flash-lite\\nPlease\u2026",
+      "partial_llm_calls": 2,
+      "partial_failed": 2,
+      "seconds": 0.33,
+      "run_record": "failed"
+    },
+    {
+      "label": "main and backup 503",
+      "env": {
+        "EVAL_MAIN": "503",
+        "EVAL_BACKUP": "503"
+      },
+      "run_id": "20261127-110737-e254e4c3",
+      "outcome": "failed",
+      "category": "provider_unavailable",
+      "hint": "The provider is overloaded or down (5xx). It is usually temporary; try again later, or configure an E1 backup on another provider.",
+      "message": "RuntimeError: 503 UNAVAILABLE: This model is currently experiencing high demand.",
+      "partial_llm_calls": 2,
+      "partial_failed": 2,
+      "seconds": 1.45,
+      "run_record": "failed"
+    },
+    {
+      "label": "Langfuse not configured, E3 on",
+      "env": {
+        "LANGFUSE_PUBLIC_KEY": "",
+        "LANGFUSE_SECRET_KEY": "",
+        "LANGFUSE_BASE_URL": ""
+      },
+      "run_id": "20261127-110739-b6a040d0",
+      "outcome": "failed",
+      "category": "error",
+      "hint": null,
+      "message": "RuntimeError: E3 enabled, but missing: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL. Add them to .env (from your Langfuse project's API keys), or set E3_TRACE_ENABLED=0. `tradingagents doctor` checks the whole setup.",
+      "partial_llm_calls": null,
+      "partial_failed": null,
+      "seconds": 0.25,
+      "run_record": null
+    },
+    {
+      "label": "E3 tracing switched off",
+      "env": {
+        "E3_TRACE_ENABLED": "0"
+      },
+      "run_id": "20261127-110739-e61c676d",
+      "outcome": "completed",
+      "rating": "Overweight",
+      "llm_calls": 10,
+      "e2_cache": {
+        "hits": 2,
+        "misses": 0,
+        "skipped": 0,
+        "hit_rate_pct": 100.0
+      },
+      "e1": {
+        "backup_calls": 0,
+        "switches": 0,
+        "breaker_skips": 0,
+        "circuit_opens": 0,
+        "backup_failures": 0,
+        "other": 0
+      },
+      "market_report_head": "Report.\n\n**Rating**: Overweight\n\nFINAL TRANSACTION PROPOSAL: **BUY**",
+      "e3_summary": false,
+      "seconds": 1.5,
+      "run_record": "completed"
+    },
+    {
+      "label": "nothing configured: E3_TRACE_ENABLED unset, no Langfuse keys",
+      "env": {
+        "E3_TRACE_ENABLED": "",
+        "LANGFUSE_PUBLIC_KEY": "",
+        "LANGFUSE_SECRET_KEY": "",
+        "LANGFUSE_BASE_URL": ""
+      },
+      "run_id": "20261127-110740-bf75f2ad",
+      "outcome": "completed",
+      "rating": "Overweight",
+      "llm_calls": 10,
+      "e2_cache": {
+        "hits": 2,
+        "misses": 0,
+        "skipped": 0,
+        "hit_rate_pct": 100.0
+      },
+      "e1": {
+        "backup_calls": 0,
+        "switches": 0,
+        "breaker_skips": 0,
+        "circuit_opens": 0,
+        "backup_failures": 0,
+        "other": 0
+      },
+      "market_report_head": "Report.\n\n**Rating**: Overweight\n\nFINAL TRANSACTION PROPOSAL: **BUY**",
+      "e3_summary": false,
+      "seconds": 0.2,
+      "run_record": "completed"
+    }
+  ]
+}

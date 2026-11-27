@@ -1,15 +1,26 @@
-"""F2: an MCP server with one read-only tool, ``analyze_stock``.
+"""F2: an MCP server with five read-only tools.
+
+- ``analyze_stock``: run a new analysis and return the decision (minutes; costs model tokens).
+- ``get_report``, ``get_run_metrics``, ``list_recent_runs``, ``propose_trade``: answer from saved runs
+  (``tradingagents.mcp_read_tools``, reading ``run_store``); they never start an analysis, call a model,
+  fetch market data or place an order.
 
 Other MCP-compatible AI assistants can ask TradingAgents for an analysis of a
 stock and get the decision back. The tool runs the same shared analysis service
 as the CLI and the dashboard (``tradingagents.service``), so E1 routing and
 backup models, the E2 market-data cache and E3 tracing all apply unchanged.
 
-Read-only by construction: this module never imports the execution layer
-(``tradingagents.execution``) and places no orders; a test pins that. A run
+Read-only by construction: this module (and mcp_read_tools, run_store, trade_rules) never imports the
+execution layer (``tradingagents.execution``), the dashboard or Alpaca, and places no orders; a test pins
+that. ``propose_trade`` applies F1's proposal rules from ``tradingagents.trade_rules`` and returns a
+proposal only: nothing here can approve, sign, submit, cancel or execute an order. A run
 does write its own analysis records (token_usage.json, the state log, the E3
 summary) and records its decision in a separate MCP memory log, so requests from
 other assistants do not feed lessons into the CLI's and dashboard's decisions.
+
+Every call to any of the five tools writes one MCP_REQUEST line to ``<results_dir>/mcp_requests.jsonl``
+(``mcp_audit``): request ID, tool, times, status, error category, the run ID and a safe argument summary.
+Never the token, a header or raw free text. The log grants nothing and changes no answer.
 
 Run it:
     tradingagents-mcp                      # stdio, for a local assistant that launches it
@@ -22,6 +33,13 @@ Bearer <token>``) and binds to 127.0.0.1. Any other address, including 0.0.0.0,
 is refused unless ``--allow-remote`` is given together with ``--tls-cert`` and
 ``--tls-key`` (HTTPS) and a token of at least 32 characters, so the server cannot
 be exposed unauthenticated or unencrypted by accident.
+
+Per-run limits: each analysis has an LLM-call limit and an estimated-cost ceiling, as in the
+dashboard (``run_budget.mcp_budget``): by default the expected calls for the requested analysts x 1.5
+(market only: 15; all four: 24) and $0.04. The server's environment sets them
+(``TRADINGAGENTS_MCP_MAX_LLM_CALLS``, ``TRADINGAGENTS_MCP_MAX_COST_USD``; a number, or off); the tool takes
+no argument that could raise them. The cost limit needs ``E3_PRICING_JSON``: without prices every call is
+refused as a server setting problem rather than run unlimited.
 
 Long runs: an analysis takes one to several minutes. The tool reports progress
 as each report is filed, and stops the run at the next step after
@@ -43,7 +61,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from tradingagents import service
+from tradingagents import e1_routing, mcp_audit, service
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +80,44 @@ TOOL_DESCRIPTION = (
 )
 
 SERVER_INSTRUCTIONS = (
-    "TradingAgents exposes one tool, analyze_stock. Each call runs a full multi-agent LLM "
+    "TradingAgents exposes five read-only tools. analyze_stock runs a full multi-agent LLM "
     "analysis that takes minutes and costs model tokens; call it once per ticker and date "
     "and reuse the result. Dates are YYYY-MM-DD and cannot be in the future; omit the date "
-    "for today. A REVIEW rating means the decision had no readable rating."
+    "for today. A REVIEW rating means the decision had no readable rating. The other four answer "
+    "from saved runs at no model cost: list_recent_runs finds run IDs, get_report returns a run's "
+    "reports and debates, get_run_metrics its routing, cache, token, cost (estimated) and timing "
+    "records, and propose_trade what the F1 paper-trading rules would allow (a proposal only; "
+    "no tool can place, approve or cancel an order)."
 )
+
+READ_TOOLS = {
+    "get_report": ("Get report", (
+        "Return the saved reports of an earlier analysis run: analyst reports, the bull/bear "
+        "investment debate, the investment and trader plans, the risk debate and the final decision, "
+        "each truncated. section narrows it to one of: market, sentiment, news, fundamentals, "
+        "investment_debate, investment_plan, trader_plan, risk_debate, final_decision. Reads saved "
+        "files only; never re-runs the analysis.")),
+    "get_run_metrics": ("Get run metrics", (
+        "Return the recorded metrics of an earlier run: E1 routing and backup-model events, E2 cache "
+        "counts, E3 token usage and per-agent figures, estimated cost (an estimate, not provider "
+        "billing), per-run limits, errors and timing. Reads saved files only; makes no model or "
+        "market-data request.")),
+    "list_recent_runs": ("List recent runs", (
+        "List recent saved analysis runs, newest first, with run ID, ticker, trade date, source, "
+        "status, rating and summary figures. limit: 1 to 50 (default 10).")),
+    "propose_trade": ("Propose trade", (
+        "Say what paper trade the F1 rules would allow for an earlier run's rating (a buy, a sell "
+        "only to reduce a long position, or no trade, with the reason and the order rules). "
+        "Read-only: it never approves, signs, submits, cancels or executes an order; a signed-in "
+        "person decides in the TradingAgents dashboard. Research output, not financial advice.")),
+}
+READ_TIMEOUT_SECONDS = 30.0
+
+
+def read_annotations(title: str) -> dict:
+    return {"title": title, "readOnlyHint": True, "destructiveHint": False,
+            "idempotentHint": True,      # the same saved record gives the same answer
+            "openWorldHint": False}      # local saved records only: no provider, no market data, no broker
 
 READ_ONLY_ANNOTATIONS = {
     "title": "Analyze stock",
@@ -103,8 +154,30 @@ def _truncate(text: str | None, limit: int) -> str:
     return text[:limit].rstrip() + f"\n\n[... truncated, {len(text) - limit:,} more characters in the saved run]"
 
 
+class ServerSettingError(ValueError):
+    """The server's own configuration (not the client's arguments) prevents the run."""
+
+
+class InvalidRequestError(ValueError):
+    """The client's arguments failed validation (before any run started)."""
+
+
+def request_budget(analysts: int):
+    """The run's limits from the server's environment; ServerSettingError when they cannot be enforced."""
+    from tradingagents import run_budget
+
+    config = service.config_for_source("mcp")
+    try:
+        budget = run_budget.mcp_budget(analysts, config["max_debate_rounds"], config["max_risk_discuss_rounds"])
+        run_budget.check_pricing(budget, cost_env=run_budget.MCP_COST_ENV)
+    except ValueError as exc:
+        raise ServerSettingError(str(exc)) from None
+    return budget
+
+
 def build_request(ticker: str, trade_date: str | None = None,
-                  analysts: list[str] | None = None) -> service.AnalysisRequest:
+                  analysts: list[str] | None = None, run_id: str | None = None,
+                  deadline=None) -> service.AnalysisRequest:
     """Validate the tool's arguments the way the CLI validates its flags."""
     from cli.models import AnalystType
     from cli.prompts import (
@@ -123,7 +196,8 @@ def build_request(ticker: str, trade_date: str | None = None,
               else filter_analysts_for_asset_type(list(AnalystType), asset_type))
     return service.AnalysisRequest(
         ticker=symbol, trade_date=day, source="mcp", asset_type=asset_type.value,
-        analysts=tuple(a.value for a in chosen),
+        analysts=tuple(a.value for a in chosen), run_id=run_id, deadline=deadline,
+        budget=request_budget(len(chosen)),
     )
 
 
@@ -147,7 +221,9 @@ def summarize(result: service.AnalysisResult, include_reports: bool = False,
         "usage": {key: usage.get(key) for key in
                   ("llm_calls", "tool_calls", "tokens_in", "tokens_out", "tokens_total",
                    "elapsed_seconds", "e2_cache") if key in usage},
-        "model_fallbacks": len(result.fallback_events),
+        **({"run_budget": _budget_view(usage["run_budget"])} if usage.get("run_budget") else {}),
+        "model_fallbacks": e1_routing.summarize_events(result.fallback_events)["backup_calls"],
+        "e1_events": e1_routing.summarize_events(result.fallback_events),
         **_e3_cost(result),
         "note": "Research output, not financial advice. This tool never places orders.",
     }
@@ -172,6 +248,60 @@ def _e3_cost(result: service.AnalysisResult) -> dict[str, Any]:
             "partial_cost_usd": cost["partial_cost_usd"], "cost_note": cost["note"]}
 
 
+_BUDGET_KEYS = ("max_llm_calls", "max_cost_usd", "llm_calls_started", "reported_usage_cost_usd",
+                "unreported_usage_estimate_usd", "budget_cost_usd", "exhausted", "reason")
+
+
+def _budget_view(budget: dict) -> dict:
+    return {k: budget.get(k) for k in _BUDGET_KEYS}
+
+
+_PARTIAL_KEYS = ("llm_calls", "llm_calls_succeeded", "llm_calls_failed", "llm_calls_in_flight", "tokens_in",
+                 "tokens_out", "tool_calls", "sdk_retries_observed", "elapsed_seconds")
+
+
+def failure_details(exc: BaseException, run_id: str | None) -> dict[str, Any]:
+    """What a stopped run can tell an MCP client: run ID, a category, a sanitized message, and the partial
+    metrics the run recorded before it stopped. No file paths, stack traces or credentials."""
+    record = getattr(exc, "analysis_failure", None) or {}
+    details: dict[str, Any] = {
+        "run_id": record.get("run_id") or run_id,
+        "category": service.error_category(exc),
+        "message": service.sanitize_error(service.describe_error(exc), 400),
+    }
+    hint = service.failure_hint(exc)
+    if hint:
+        details["hint"] = hint
+    partial = {key: record[key] for key in _PARTIAL_KEYS if record.get(key) is not None}
+    if record.get("e1_fallback_events") is not None:
+        events = e1_routing.summarize_events(record["e1_fallback_events"])
+        partial["e1_fallback_switches"] = events["backup_calls"]
+        partial["e1_events"] = events
+    if record.get("e2_cache"):
+        partial["e2_cache"] = record["e2_cache"]
+    if record.get("e3_cost"):
+        partial["e3_cost"] = record["e3_cost"]
+    budget = record.get("run_budget") or getattr(exc, "budget", None)
+    if budget:
+        partial["run_budget"] = _budget_view(budget)
+    if partial:
+        partial["note"] = "what the run reported before it stopped; not complete"
+        details["partial_metrics"] = partial
+    return details
+
+
+def failure_message(exc: BaseException, run_id: str | None, lead: str = "analysis failed") -> str:
+    details = failure_details(exc, run_id)
+    import json
+
+    text = f"{lead} [{details['category']}] run {details['run_id']}: {details['message']}"
+    if details.get("hint"):
+        text += f"\nwhat to do: {details['hint']}"
+    if "partial_metrics" in details:
+        text += "\npartial metrics: " + json.dumps(details["partial_metrics"], sort_keys=True)
+    return text
+
+
 def analyze_stock_sync(
     ticker: str,
     trade_date: str | None = None,
@@ -181,6 +311,8 @@ def analyze_stock_sync(
     on_progress: Callable[[int, int, str], None] | None = None,
     cancel: threading.Event | None = None,
     run=None,
+    run_id: str | None = None,
+    deadline=None,
 ) -> dict[str, Any]:
     """The tool without the protocol: validate, run through the shared service, summarize.
 
@@ -191,7 +323,14 @@ def analyze_stock_sync(
         from tradingagents.worker import analysis_runner
 
         run = analysis_runner()
-    request = build_request(ticker, trade_date, analysts)
+    try:
+        request = build_request(ticker, trade_date, analysts, run_id=run_id, deadline=deadline)
+    except ServerSettingError:
+        raise
+    except ValueError as exc:
+        # Only argument validation reads as "invalid request"; a ValueError raised later, inside the run,
+        # is a run failure and is reported with its run ID, category and partial metrics.
+        raise InvalidRequestError(str(exc)) from None
     last = [-1]
 
     def on_event(event: service.AnalysisEvent) -> None:
@@ -217,11 +356,22 @@ def api_key_verifier(token: str):
     return ApiKeyVerifier()
 
 
+class _Failure(Exception):
+    """A ToolError with how the call ended, for the MCP_REQUEST line; analyze_stock re-raises the ToolError."""
+
+    def __init__(self, error: Exception, status: str, category: str, *, ran: bool = True):
+        super().__init__(str(error))
+        self.error, self.status, self.category, self.ran = error, status, category, ran
+
+
 def create_server(*, auth=None, timeout: float | None = None, run=None):
-    """Build the FastMCP server with its one tool. ``run`` is the service call (tests stub it)."""
+    """Build the FastMCP server with its five tools. ``run`` is the service call (tests stub it)."""
+    from typing import Annotated
+
     import anyio
     from fastmcp import Context, FastMCP
     from fastmcp.exceptions import ToolError
+    from pydantic import Field
 
     limit = timeout or _env_float(TIMEOUT_ENV, DEFAULT_TIMEOUT_SECONDS)
     mcp = FastMCP("TradingAgents", instructions=SERVER_INSTRUCTIONS, auth=auth)
@@ -232,12 +382,39 @@ def create_server(*, auth=None, timeout: float | None = None, run=None):
         ctx: Context,
         trade_date: str | None = None,
         analysts: list[str] | None = None,
-        include_reports: bool = False,
+        # Strict: a JSON boolean only. In lax mode "yes", "on", "1" or 1 become True and start a full (paid)
+        # analysis from a malformed argument; the same reason RecentLimit below is strict.
+        include_reports: Annotated[bool, Field(strict=True)] = False,
     ) -> dict:
         """ticker: e.g. NVDA, 0700.HK, BTC-USD. trade_date: YYYY-MM-DD, today or earlier; omit
         for today. analysts: any of market, sentiment, news, fundamentals; omit for all.
         include_reports: also return each analyst's report (truncated)."""
         cancel = threading.Event()
+        run_id = service.new_run_id()           # known before the run, so every outcome can cite it
+        audit = mcp_audit.Request("analyze_stock", {"ticker": ticker, "trade_date": trade_date,
+                                                    "analysts": analysts, "include_reports": include_reports})
+        try:
+            answer = await _analyze(ticker, ctx, trade_date, analysts, include_reports, cancel, run_id)
+        except _Failure as failure:
+            audit.finish(failure.status, failure.category, run_id=run_id if failure.ran else None)
+            raise failure.error from None
+        except anyio.get_cancelled_exc_class():
+            audit.finish("cancelled", "cancelled", run_id=run_id)
+            raise
+        except BaseException:
+            audit.finish("error", "internal_error", run_id=run_id)
+            raise
+        audit.finish("ok", run_id=run_id)
+        return answer
+
+    async def _analyze(ticker, ctx, trade_date, analysts, include_reports, cancel, run_id) -> dict:
+        from tradingagents.run_deadline import interactive_deadline
+
+        try:
+            deadline = interactive_deadline()   # counts from this call; worker start-up included
+        except ValueError as exc:
+            raise _Failure(ToolError(f"invalid server setting: {exc}"), "error", "invalid_server_setting",
+                           ran=False) from None
 
         def progress(done: int, total: int, label: str) -> None:
             # Called from the worker thread; a lost notification must not stop the run.
@@ -247,26 +424,105 @@ def create_server(*, auth=None, timeout: float | None = None, run=None):
                 logger.debug("progress notification failed", exc_info=True)
 
         call = partial(analyze_stock_sync, ticker, trade_date, analysts, include_reports,
-                       on_progress=progress, cancel=cancel, run=run)
+                       on_progress=progress, cancel=cancel, run=run, run_id=run_id, deadline=deadline)
         try:
             with anyio.fail_after(limit):
                 return await anyio.to_thread.run_sync(call, abandon_on_cancel=True)
         except TimeoutError:
             cancel.set()   # the run stops at its next step and frees the server
-            raise ToolError(f"analysis timed out after {limit:.0f}s and was stopped; "
-                            f"raise {TIMEOUT_ENV} or analyze fewer analysts") from None
+            raise _Failure(ToolError(f"analysis timed out after {limit:.0f}s and was stopped [timeout] run "
+                                     f"{run_id}; raise {TIMEOUT_ENV} or analyze fewer analysts"),
+                           "timeout", "timeout") from None
         except anyio.get_cancelled_exc_class():
             cancel.set()   # the client went away or cancelled the request
             raise
-        except ValueError as exc:
-            raise ToolError(f"invalid request: {exc}") from None
+        except ServerSettingError as exc:
+            raise _Failure(ToolError(f"invalid server setting: {service.sanitize_error(str(exc), 400)}"),
+                           "error", "invalid_server_setting", ran=False) from None
+        except InvalidRequestError as exc:
+            raise _Failure(ToolError(f"invalid request: {service.sanitize_error(str(exc), 400)}"),
+                           "error", "invalid_request", ran=False) from None
         except service.AnalysisBusyError as exc:
-            raise ToolError(str(exc)) from None
+            raise _Failure(ToolError(str(exc)), "error", "busy", ran=False) from None
         except service.AnalysisCancelled as exc:
-            raise ToolError(str(exc)) from None
+            category = service.error_category(exc)
+            raise _Failure(ToolError(failure_message(exc, run_id, lead="analysis stopped")),
+                           "timeout" if category == "timeout" else "cancelled" if category == "cancelled" else "error",
+                           category) from None
         except Exception as exc:  # noqa: BLE001 - a provider or data failure, reported briefly
-            logger.exception("analyze_stock failed")
-            raise ToolError(f"analysis failed: {type(exc).__name__}: {str(exc)[:300]}") from None
+            # The traceback goes to the server's log (stderr), never to the client.
+            logger.exception("analyze_stock failed (run %s)", run_id)
+            raise _Failure(ToolError(failure_message(exc, run_id)), "error", service.error_category(exc)) from None
+
+    async def read_tool(name: str, function, *args, arguments: dict) -> dict:
+        """Run a read tool off the event loop; its errors become plain tool errors (no paths, no traces).
+        Every call, whatever its outcome, writes one MCP_REQUEST line (mcp_audit)."""
+        from tradingagents import mcp_read_tools as tools
+
+        rid = arguments.get("run_id")
+        audit = mcp_audit.Request(name, arguments, run_id=rid if isinstance(rid, str) else None)
+        try:
+            with anyio.fail_after(READ_TIMEOUT_SECONDS):
+                answer = await anyio.to_thread.run_sync(partial(function, *args), abandon_on_cancel=True)
+        except TimeoutError:
+            audit.finish("timeout", "timeout")
+            raise ToolError(f"{name} timed out after {READ_TIMEOUT_SECONDS:.0f}s reading saved runs") from None
+        except tools.ToolInputError as exc:
+            audit.finish("error", "invalid_request")
+            raise ToolError(f"invalid request: {exc}") from None
+        except tools.ServerSetting as exc:
+            audit.finish("error", "invalid_server_setting")
+            raise ToolError(f"invalid server setting: {service.sanitize_error(str(exc), 400)}") from None
+        except tools.RunNotFound as exc:
+            audit.finish("error", "run_not_found", run_id="")       # not a reference to a stored run
+            raise ToolError(f"run not found: {exc}") from None
+        except tools.ReportUnavailable as exc:
+            audit.finish("error", "report_unavailable")
+            raise ToolError(f"report unavailable: {service.sanitize_error(str(exc), 400)}") from None
+        except anyio.get_cancelled_exc_class():
+            audit.finish("cancelled", "cancelled")
+            raise
+        except Exception:  # noqa: BLE001 - the traceback goes to the server log, never to the client
+            audit.finish("error", "internal_error")
+            logger.exception("%s failed", name)
+            raise ToolError(f"{name} failed while reading saved runs; see the server log") from None
+        audit.finish("ok")
+        return answer
+
+    from tradingagents import mcp_read_tools
+
+    # Strict: a JSON integer only. Without it, pydantic's lax mode turns "10" into 10, 2.0 into 2 and true into 1
+    # before the tool sees them. 0 and negatives pass this check and get the tool's own message (see
+    # mcp_read_tools.list_recent_runs); above 50 is capped there, not refused. "minimum" tells clients the range.
+    RecentLimit = Annotated[int, Field(strict=True, json_schema_extra={"minimum": 1})]
+
+    @mcp.tool(name="get_report", description=READ_TOOLS["get_report"][1],
+              annotations=read_annotations(READ_TOOLS["get_report"][0]))
+    async def get_report(run_id: str, section: str | None = None) -> dict:
+        """run_id: from analyze_stock or list_recent_runs. section: one part only, or omit for all."""
+        return await read_tool("get_report", mcp_read_tools.get_report, run_id, section,
+                               arguments={"run_id": run_id, "section": section})
+
+    @mcp.tool(name="get_run_metrics", description=READ_TOOLS["get_run_metrics"][1],
+              annotations=read_annotations(READ_TOOLS["get_run_metrics"][0]))
+    async def get_run_metrics(run_id: str) -> dict:
+        """run_id: from analyze_stock or list_recent_runs."""
+        return await read_tool("get_run_metrics", mcp_read_tools.get_run_metrics, run_id,
+                               arguments={"run_id": run_id})
+
+    @mcp.tool(name="list_recent_runs", description=READ_TOOLS["list_recent_runs"][1],
+              annotations=read_annotations(READ_TOOLS["list_recent_runs"][0]))
+    async def list_recent_runs(limit: RecentLimit = mcp_read_tools.DEFAULT_RECENT) -> dict:
+        """limit: how many runs, 1 to 50 (more is capped at 50)."""
+        return await read_tool("list_recent_runs", mcp_read_tools.list_recent_runs, limit,
+                               arguments={"limit": limit})
+
+    @mcp.tool(name="propose_trade", description=READ_TOOLS["propose_trade"][1],
+              annotations=read_annotations(READ_TOOLS["propose_trade"][0]))
+    async def propose_trade(run_id: str) -> dict:
+        """run_id: a completed run, from analyze_stock or list_recent_runs."""
+        return await read_tool("propose_trade", mcp_read_tools.propose_trade, run_id,
+                               arguments={"run_id": run_id})
 
     return mcp
 
@@ -340,6 +596,9 @@ def main(argv: list[str] | None = None) -> None:
     if args.transport == "stdio":
         if args.allow_remote or args.tls_cert or args.tls_key or args.host != "127.0.0.1":
             parser.error("--host, --allow-remote and --tls-* apply to the http transport only")
+        from tradingagents.worker import prewarm
+
+        prewarm()                                # the first call starts on a warm worker
         create_server().run(transport="stdio", show_banner=False)
         return
     token = os.environ.get(TOKEN_ENV, "").strip()

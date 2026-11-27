@@ -1,0 +1,46 @@
+[
+  {
+    "label": "http no token",
+    "ok": false,
+    "error": "MCPError: Server returned an error response"
+  },
+  {
+    "label": "http wrong token",
+    "ok": false,
+    "error": "MCPError: Server returned an error response"
+  },
+  {
+    "label": "http correct token",
+    "ok": true,
+    "tools": [
+      "analyze_stock",
+      "get_report",
+      "get_run_metrics",
+      "list_recent_runs",
+      "propose_trade"
+    ],
+    "runs": 0,
+    "analyze_rating": "Overweight",
+    "analyze_source": "mcp"
+  },
+  {
+    "label": "http without a token configured",
+    "exit_code": 2,
+    "output": "usage: tradingagents-mcp [-h] [--transport {stdio,http}] [--host HOST]\n                         [--port PORT] [--allow-remote] [--tls-cert TLS_CERT]\n                         [--tls-key TLS_KEY]\ntradingagents-mcp: error: the http transport needs TRADINGAGENTS_MCP_TOKEN set to a secret of at least 16 characters\n"
+  },
+  {
+    "label": "http on 0.0.0.0 without --allow-remote",
+    "exit_code": 2,
+    "output": "T]\n                         [--tls-key TLS_KEY]\ntradingagents-mcp: error: 0.0.0.0 can be reached from other machines; the server binds to 127.0.0.1 unless --allow-remote is given (with --tls-cert and --tls-key). For a local assistant, use the stdio transport instead; serving on 0.0.0.0 needs TLS (--tls-cert and --tls-key); without it the bearer token and the analyses cross the network unencrypted\n"
+  },
+  {
+    "label": "http --allow-remote without TLS",
+    "exit_code": 2,
+    "output": "usage: tradingagents-mcp [-h] [--transport {stdio,http}] [--host HOST]\n                         [--port PORT] [--allow-remote] [--tls-cert TLS_CERT]\n                         [--tls-key TLS_KEY]\ntradingagents-mcp: error: serving on 0.0.0.0 needs TLS (--tls-cert and --tls-key); without it the bearer token and the analyses cross the network unencrypted\n"
+  },
+  {
+    "label": "http with a short token",
+    "exit_code": 2,
+    "output": "usage: tradingagents-mcp [-h] [--transport {stdio,http}] [--host HOST]\n                         [--port PORT] [--allow-remote] [--tls-cert TLS_CERT]\n                         [--tls-key TLS_KEY]\ntradingagents-mcp: error: the http transport needs TRADINGAGENTS_MCP_TOKEN set to a secret of at least 16 characters\n"
+  }
+]

@@ -37,7 +37,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -49,6 +49,7 @@ from tradingagents.agents.rating import is_review, run_rating
 from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.run_budget import BudgetGuard, RunBudget
+from tradingagents.run_deadline import DeadlineGuard, RunDeadline
 from tradingagents.run_stats import StatsCallbackHandler
 
 logger = logging.getLogger(__name__)
@@ -129,6 +130,22 @@ class AnalysisBudgetExceeded(AnalysisCancelled):
                                  f"analysis {self.run_id} was stopped by its per-run limit ({reason})", 1)
 
 
+class AnalysisDeadlineExceeded(AnalysisCancelled):
+    """The run's deadline stopped it (the whole analysis, or one model step): not a cancel by a person,
+    not the budget and not a provider error. ``deadline`` is the deadline's accounting."""
+
+    def __init__(self, run_id: str, stage: str, in_flight_model_calls: int = 0,
+                 prevented_calls: int = 0, deadline: dict | None = None):
+        self.deadline = deadline or {}
+        super().__init__(run_id, stage, in_flight_model_calls, prevented_calls)
+
+    def _message(self) -> str:
+        cancelled = super()._message()
+        reason = self.deadline.get("reason") or "deadline reached"
+        return cancelled.replace(f"analysis {self.run_id} was cancelled",
+                                 f"analysis {self.run_id} was stopped by its deadline ({reason})", 1)
+
+
 class _CancelSignal(BaseException):
     """Raised inside the graph to stop it. A BaseException on purpose: the agents'
     ``except Exception`` fallbacks, and E1's with_fallbacks, must not catch it and
@@ -202,6 +219,71 @@ _SECRET_PATTERNS = (r"AIza[0-9A-Za-z_\-]{30,}", r"\b(?:sk|pk)-lf-[0-9A-Za-z\-]{8
                     r"(?i)\b(?:api[_-]?key|key|token|secret)=[^\s&'\"]{8,}")
 
 
+def error_category(error: BaseException) -> str:
+    """A short, stable label for why a run stopped, for people and for MCP clients."""
+    from tradingagents.e3_tracing import error_code
+
+    if isinstance(error, AnalysisBudgetExceeded):
+        return "budget_exceeded"
+    if isinstance(error, AnalysisDeadlineExceeded):
+        return "timeout"
+    if isinstance(error, AnalysisCancelled):
+        return "cancelled"
+    if isinstance(error, AnalysisBusyError):
+        return "busy"
+    name = type(error).__name__
+    if (name in ("WorkerUnresponsive", "WorkerStartupError") or "worker exited unexpectedly" in str(error)
+            or "worker sent no heartbeat" in str(error)):
+        return "worker_failure"
+    import re
+
+    from tradingagents.e1_routing import FallbackConfigError
+    from tradingagents.llm_clients.provider_errors import classify
+
+    if isinstance(error, FallbackConfigError):
+        return "configuration"
+    code = error_code(error)
+    text = str(error)[:400]
+    overload = classify(error)
+    if overload is not None and overload.kind == "quota_exhausted":
+        return "quota_exhausted"            # a daily/monthly/billing quota: retrying the model will not help
+    # Whole numbers only: a run ID's hex digits must never read as a status code.
+    if code == 429 or re.search(r"\b429\b|RESOURCE_EXHAUSTED", text) or "RateLimit" in name:
+        return "rate_limited"
+    if code in (500, 502, 503) or re.search(r"\b50[023]\b|\bUNAVAILABLE\b", text):
+        return "provider_unavailable"
+    if code in (408, 504) or isinstance(error, TimeoutError) or "Timeout" in name or "DEADLINE_EXCEEDED" in text:
+        return "timeout"
+    if code == 404 or re.search(r"\bNOT_FOUND\b|model.{0,40}not (be )?found|is not found for API version", text,
+                                re.IGNORECASE):
+        return "model_not_found"
+    if code in (401, 403) or re.search(r"\b(UNAUTHENTICATED|PERMISSION_DENIED)\b|API key not valid", text):
+        return "auth"
+    if isinstance(error, ValueError):
+        return "invalid_request"
+    if code is not None and 400 <= code < 500:
+        return "provider_rejected"
+    return "error"
+
+
+def failure_hint(error: BaseException) -> str | None:
+    """What a person can do about this failure (quota, rate limit, 5xx, unknown model, credentials)."""
+    from tradingagents.llm_clients.provider_errors import hint_for
+
+    return hint_for(error_category(error), error)
+
+
+def describe_error(exc: BaseException) -> str:
+    """The error as a person should read it. The worker re-raises a child's error as
+    RuntimeError("<original type>: <message>"); keep that original type instead of prefixing another."""
+    import re
+
+    text = str(exc)
+    if type(exc) is RuntimeError and re.match(r"^[A-Za-z_][\w.]*(Error|Exception|Exit): ", text):
+        return text
+    return f"{type(exc).__name__}: {text}"
+
+
 def sanitize_error(error: BaseException | str, limit: int = 500) -> str:
     """One line, bounded, with any credential-looking value removed: safe to save and to show."""
     import re
@@ -257,6 +339,83 @@ def e3_cost(summary: Mapping[str, Any] | None) -> dict[str, Any]:
                        if partial is not None else "")}
 
 
+# Interfaces a person or an assistant waits on get bounded model calls unless configured otherwise
+# (an explicit TRADINGAGENTS_LLM_BACKUP_MAX_RETRIES / TRADINGAGENTS_LLM_TIMEOUT always wins). The CLI keeps
+# Phase 2's settings. The backup gets ONE retry after its first request, translated per provider by
+# llm_clients/retry_policy (Gemini counts attempts, OpenAI/Anthropic count retries); the primary gets none.
+# The 30 s request timeout sits above the slowest successful call in the saved evidence (23.1 s; p99 16.4 s).
+BOUNDED_SOURCES = frozenset({"dashboard", "mcp"})
+BOUNDED_BACKUP_RETRIES = 1
+BOUNDED_TIMEOUT_SECONDS = 30.0
+# E1 circuit breaker (e1_routing.CircuitBreaker): after an overload error from the main model, its calls
+# go straight to the backup for this long. TRADINGAGENTS_E1_BREAKER_SECONDS=<n> or off; CLI: never.
+BREAKER_ENV = "TRADINGAGENTS_E1_BREAKER_SECONDS"
+BOUNDED_BREAKER_SECONDS = 60.0     # > one interactive run (25-40 s): one overload error per run, not two
+
+
+class _SdkRetryCounter:
+    """Counts provider-SDK retries, which happen inside one model call where no callback sees them.
+
+    Each known SDK logs every retry at INFO before it sleeps (llm_clients/retry_policy.KNOWN): google-genai
+    "Retrying ...", openai and anthropic "Retrying request ...". ``report()`` is the count, or None when a
+    provider used by the run does not expose its retries (then ``observability`` says which).
+    """
+
+    def __init__(self):
+        self.count = 0
+        self.observability = "observed"
+        self._lock = threading.Lock()
+
+    def add(self):
+        with self._lock:
+            self.count += 1
+
+    def report(self) -> int | None:
+        return self.count if self.observability == "observed" else None
+
+    def describe_for(self, config: Mapping[str, Any]) -> None:
+        from tradingagents.llm_clients.retry_policy import UNKNOWN, policy_for, tier_provider
+
+        unseen = sorted({tier_provider(dict(config), tier) for tier in ("quick", "deep")
+                         if policy_for(tier_provider(dict(config), tier)) is UNKNOWN})
+        self.observability = "observed" if not unseen else f"unavailable for {', '.join(unseen)}"
+
+
+class _RetryLogHandler(logging.Handler):
+    def __init__(self, prefix: str, counter: _SdkRetryCounter):
+        super().__init__(level=logging.INFO)
+        self.prefix, self.counter = prefix, counter
+
+    def emit(self, record):
+        if str(record.msg).startswith(self.prefix):
+            self.counter.add()
+
+
+class _observe_sdk_retries:
+    """Installs a retry-log handler on every known SDK logger for the duration of a run
+    (one run per process holds the run lock, so the counts belong to that run)."""
+
+    def __enter__(self):
+        from tradingagents.llm_clients.retry_policy import KNOWN
+
+        self.counter = _SdkRetryCounter()
+        self.installed = []
+        for policy in KNOWN:
+            logger = logging.getLogger(policy.logger)
+            handler = _RetryLogHandler(policy.message_prefix, self.counter)
+            self.installed.append((logger, handler, logger.level))
+            if logger.getEffectiveLevel() > logging.INFO:
+                logger.setLevel(logging.INFO)        # the SDKs log their retries at INFO
+            logger.addHandler(handler)
+        return self.counter
+
+    def __exit__(self, *exc):
+        for logger, handler, level in self.installed:
+            logger.removeHandler(handler)
+            logger.setLevel(level)
+        return False
+
+
 def config_for_source(source: str, base: Mapping[str, Any] | None = None) -> dict:
     """The run config for an interface: the configured defaults, with MCP runs on a log of their own.
 
@@ -265,6 +424,20 @@ def config_for_source(source: str, base: Mapping[str, Any] | None = None) -> dic
     """
     _check_source(source)
     config = copy.deepcopy(dict(base if base is not None else DEFAULT_CONFIG))
+    if source in BOUNDED_SOURCES:
+        if config.get("llm_backup_max_retries") is None and config.get("llm_backup_retries") is None:
+            config["llm_backup_retries"] = BOUNDED_BACKUP_RETRIES
+        if config.get("llm_timeout") is None:
+            config["llm_timeout"] = BOUNDED_TIMEOUT_SECONDS
+        if "e1_breaker_seconds" not in config:
+            raw = (os.environ.get(BREAKER_ENV) or "").strip().lower()
+            if raw in ("0", "off", "none", "false", "no"):
+                config["e1_breaker_seconds"] = None
+            else:
+                try:
+                    config["e1_breaker_seconds"] = float(raw) if raw else BOUNDED_BREAKER_SECONDS
+                except ValueError:
+                    raise ValueError(f"{BREAKER_ENV}={raw!r} is not a number of seconds; use a number, or off") from None
     if source == "mcp":
         main_log = config.get("memory_log_path")
         config["memory_log_path"] = os.environ.get(MCP_MEMORY_LOG_ENV) or (
@@ -293,14 +466,18 @@ class AnalysisRequest:
     config: Mapping[str, Any] | None = None
     portfolio: Any = None          # tradingagents.portfolio.PortfolioContext
     run_id: str | None = None
-    # Per-run LLM limits (run_budget.RunBudget); None = no limits (the CLI and MCP default).
+    # Per-run LLM limits (run_budget.RunBudget); None = no limits (the CLI default). The dashboard and MCP set them.
     budget: RunBudget | None = None
+    # Deadlines (run_deadline.RunDeadline); None = none (the CLI default).
+    deadline: RunDeadline | None = None
 
     def __post_init__(self):
         _check_source(self.source)
         safe_ticker_component(self.ticker)
         if self.budget is not None and not isinstance(self.budget, RunBudget):
             raise TypeError("budget must be a run_budget.RunBudget or None")
+        if self.deadline is not None and not isinstance(self.deadline, RunDeadline):
+            raise TypeError("deadline must be a run_deadline.RunDeadline or None")
         if self.asset_type not in ("stock", "crypto"):
             raise ValueError(f"asset_type must be stock or crypto, got {self.asset_type!r}")
         chosen = set(self.analysts)
@@ -391,8 +568,9 @@ def run_analysis(
     if not _RUN_LOCK.acquire(blocking=wait):
         raise AnalysisBusyError("another analysis is running in this process; try again when it finishes")
     try:
-        return _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph_factory,
-                           defer_e3_save)
+        with _observe_sdk_retries() as retries:
+            return _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph_factory,
+                               defer_e3_save, retries)
     finally:
         _RUN_LOCK.release()
 
@@ -401,7 +579,8 @@ def is_busy() -> bool:
     return _RUN_LOCK.locked()
 
 
-def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph_factory, defer_e3_save):
+def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph_factory, defer_e3_save,
+                retries=None):
     # Imported here: the graph pulls in every LLM SDK, which a caller that only
     # builds requests (the MCP server listing its tools) need not pay for.
     from tradingagents.e3_cli_hook import E3Session
@@ -415,16 +594,29 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
     run_id = request.run_id or new_run_id()
     config = (copy.deepcopy(dict(request.config)) if request.config is not None
               else config_for_source(request.source))
+    if retries is not None:
+        retries.describe_for(config)         # which of this run's providers expose their retries
+    config["e1_breaker_scope"] = run_id      # the run's breakers (quota-only without e1_breaker_seconds)
+    adaptive = _adaptive_routing(config)     # opt-in (e1_adaptive.py); [] when off
     limits = request.budget if request.budget is not None and request.budget.active else None
-    if limits is not None and cancel is None:
-        cancel = threading.Event()          # the limit stops the run through the cancel path
+    deadline = request.deadline
+    if (limits is not None or deadline is not None) and cancel is None:
+        cancel = threading.Event()          # a limit or deadline stops the run through the cancel path
     guard = CancellationGuard(cancel) if cancel is not None else None
     emit = on_event or (lambda event: None)
     budget_guard = None
+    deadline_guard = (DeadlineGuard(deadline, cancel, on_exhausted=lambda snapshot: emit(
+        AnalysisEvent(run_id, "deadline", state=snapshot))) if deadline is not None else None)
 
     def stopped(stage: str) -> AnalysisCancelled:
-        """A stop is a budget stop when the limit tripped, otherwise a cancel by the caller."""
+        """A deadline stop, a budget stop, or else a cancel by the caller (whichever tripped)."""
         in_flight, prevented = (guard.in_flight, guard.prevented) if guard else (0, 0)
+        if deadline_guard is not None:
+            deadline_guard.check_analysis()   # a cancel sent because the deadline passed is a deadline stop
+        if deadline_guard is not None and deadline_guard.exhausted:
+            snapshot = deadline_guard.snapshot()
+            return AnalysisDeadlineExceeded(run_id, stage, in_flight, prevented + snapshot["llm_calls_refused"],
+                                            deadline=snapshot)
         if budget_guard is not None and budget_guard.exhausted:
             snapshot = budget_guard.snapshot()
             return AnalysisBudgetExceeded(run_id, stage, in_flight, prevented + snapshot["llm_calls_refused"],
@@ -432,6 +624,8 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
         return AnalysisCancelled(run_id, stage, in_flight, prevented)
 
     def check(stage: str) -> None:
+        if deadline_guard is not None:
+            deadline_guard.check_analysis()        # also between steps, not only at model calls
         if cancel is not None and cancel.is_set():
             raise stopped(stage)
 
@@ -440,15 +634,18 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
         # Raises ValueError for a cost limit without prices, before anything runs or is recorded.
         budget_guard = BudgetGuard(limits, cancel, on_exhausted=lambda snapshot: emit(
             AnalysisEvent(run_id, "budget", state=snapshot)))
+        budget_guard.retry_counter = retries
     stats = stats_handler or StatsCallbackHandler()
     e3 = E3Session.from_env(ticker=ticker, analysis_date=trade_date, run_id=run_id,
                             source=request.source)
     # The limit, then the cancel guard, first: a refused call must not be counted as started by the others.
     failed_calls = _FailedCallCounter()
-    callbacks = [*([budget_guard] if budget_guard else []), *([guard] if guard else []), stats,
+    callbacks = [*([deadline_guard] if deadline_guard else []), *([budget_guard] if budget_guard else []),
+                 *([guard] if guard else []), stats,
                  *e3.callbacks, *extra_callbacks, failed_calls]
     # Taken before anything runs, for a failed run's record (a success measures from its usual points).
-    began_wall = time.time()
+    began_wall = time.monotonic()      # durations only (a wall-clock step must not change them)
+    began_at = datetime.now(UTC).isoformat(timespec="seconds")     # the run record's started_at (display)
     e2_on = bool(config.get("e2_cache_enabled", False) or e2_cache.is_enabled())
     e2_initial = e2_cache.stats_snapshot()
     e2_rows_initial = e2_cache.row_count(config.get("data_cache_dir")) if e2_on else None
@@ -461,7 +658,7 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
             check("before the graph was built")
             e3.mark_analysis_started()
             graph = graph_factory(list(request.analysts), config=config, debug=False, callbacks=callbacks)
-            started = time.time()
+            started = time.monotonic()
             e2_before = e2_cache.stats_snapshot()
             fallback_mark = _size(fallback_log)
 
@@ -516,26 +713,55 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
         # of this run executes past here and the lock can be released.
         cancelled.mark_released()
         e3.mark_analysis_finished()
-        if isinstance(cancelled, AnalysisBudgetExceeded):
+        if retries is not None:
+            e3.sdk_retries_observed = retries.report()
+        if isinstance(cancelled, AnalysisDeadlineExceeded):
+            cancelled.deadline = deadline_guard.snapshot()
+            e3.mark_deadline_exceeded(str(cancelled), cancelled.deadline)
+            if budget_guard is not None:
+                e3.run_budget = budget_guard.snapshot()
+        elif isinstance(cancelled, AnalysisBudgetExceeded):
             cancelled.budget = budget_guard.snapshot()          # final: calls in flight have returned
             e3.mark_budget_exceeded(str(cancelled), cancelled.budget)
         else:
             e3.mark_cancelled(str(cancelled))
         e3.save()
+        if not isinstance(cancelled, AnalysisDeadlineExceeded):
+            _release_breakers(config)          # (a deadline stop releases them in its record below)
+            # A budget stop or a cancel writes no token_usage.json; its run record says how it ended.
+            stopped_usage = {**stats.get_stats(), "elapsed_seconds": round(time.monotonic() - (started or began_wall), 1)}
+            if getattr(cancelled, "budget", None):
+                stopped_usage["run_budget"] = cancelled.budget
+            _store_run(config, request, run_id,
+                       "budget_exceeded" if isinstance(cancelled, AnalysisBudgetExceeded) else "cancelled",
+                       stopped_usage, e1_events=_new_lines(fallback_log, fallback_initial),
+                       e3_summary_path=e3.saved_path, error=sanitize_error(cancelled),
+                       error_category=error_category(cancelled), started_at=began_at)
+        if isinstance(cancelled, AnalysisDeadlineExceeded):
+            # Keep what the run recorded (as for a failure), labelled as a deadline stop.
+            _record_failure(cancelled, error=sanitize_error(cancelled), request=request, run_id=run_id,
+                            config=config, stats=stats, failed_calls=failed_calls.failed,
+                            started=started or began_wall, e2_on=e2_on, e2_before=e2_before or e2_initial,
+                            e2_rows_before=e2_rows_initial, fallback_log=fallback_log,
+                            fallback_mark=fallback_mark if fallback_mark is not None else fallback_initial,
+                            budget_guard=budget_guard, e3=e3, retries=retries, status="deadline_exceeded",
+                            deadline=cancelled.deadline, started_at=began_at)
         raise
     except BaseException as exc:
         e3.mark_analysis_finished()
         error = sanitize_error(exc)
         e3.mark_failed(error)
+        if retries is not None:
+            e3.sdk_retries_observed = retries.report()
         if budget_guard is not None:
             e3.run_budget = budget_guard.snapshot()
         e3.save()
         _record_failure(exc, error=error, request=request, run_id=run_id, config=config, stats=stats,
-                        failed_calls=failed_calls.failed, started=started or began_wall,
+                        failed_calls=failed_calls.failed, started=started or began_wall, started_at=began_at,
                         e2_on=e2_on, e2_before=e2_before or e2_initial, e2_rows_before=e2_rows_initial,
                         fallback_log=fallback_log,
                         fallback_mark=fallback_mark if fallback_mark is not None else fallback_initial,
-                        budget_guard=budget_guard, e3=e3)
+                        budget_guard=budget_guard, e3=e3, retries=retries)
         raise
     e3.mark_analysis_finished()
 
@@ -545,7 +771,7 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
         "llm_provider": config.get("llm_provider"),
         "quick_think_llm": config.get("quick_think_llm"),
         "deep_think_llm": config.get("deep_think_llm"),
-        "elapsed_seconds": round(time.time() - started, 1),
+        "elapsed_seconds": round(time.monotonic() - started, 1),
     }
     usage["tokens_total"] = usage["tokens_in"] + usage["tokens_out"]
     # E2: this run's own hits and misses, not the process's running total.
@@ -556,6 +782,17 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
     if budget_guard is not None:
         usage["run_budget"] = budget_guard.snapshot()
         e3.run_budget = usage["run_budget"]
+    if deadline is not None:
+        from tradingagents.run_deadline import outcome
+
+        usage["run_deadline"] = outcome(deadline)
+    breaker_stats = _release_breakers(config)
+    if breaker_stats is not None:
+        usage["e1_breaker"] = breaker_stats
+    if adaptive:
+        usage["e1_adaptive"] = adaptive
+    if retries is not None:
+        e3.sdk_retries_observed = retries.report()
 
     results_dir = run_directory(config, ticker, trade_date)
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -565,18 +802,48 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
     e3.mark_completed(decision=final_state.get("final_trade_decision"))
     if not defer_e3_save:
         e3.save()
+    fallback_events = _new_lines(fallback_log, fallback_initial)
+    _store_run(config, request, run_id, "completed", usage, rating=rating, final_state=final_state,
+               e1_events=fallback_events, e3_summary_path=e3.saved_path, started_at=began_at)
 
     return AnalysisResult(
         run_id=run_id, source=request.source, ticker=ticker, trade_date=trade_date,
         asset_type=asset_type, analysts=request.analysts, rating=rating,
         final_state=final_state, usage=usage, results_dir=results_dir, usage_path=usage_path,
-        e3_summary_path=e3.saved_path, fallback_events=_new_lines(fallback_log, fallback_mark),
+        e3_summary_path=e3.saved_path,
+        # From the run's start: an adaptive-routing decision is logged while the graph is built.
+        fallback_events=fallback_events,
         graph=graph, e3=e3,
     )
 
 
+def _adaptive_routing(config: dict) -> list[dict]:
+    """E1 adaptive routing (opt-in): decide each tier from recent E3 records; a demotion makes build_model
+    open that tier's breaker for the run. Returns the decisions for the run's record ([] when off)."""
+    from dataclasses import asdict
+
+    from tradingagents import e1_adaptive
+
+    decisions = e1_adaptive.plan(config)
+    config["e1_prefer_backup"] = {d.tier: d.reason for d in decisions if d.action == "prefer_backup"}
+    return [asdict(d) for d in decisions]
+
+
+def _release_breakers(config) -> dict | None:
+    """Forget this run's E1 circuit breakers. Returns their trips and skipped calls when the breaker is
+    configured (dashboard, MCP) or tripped (a used-up quota, in any source); otherwise None, so a CLI run that
+    never needed it keeps Phase 2's record."""
+    if not config.get("e1_breaker_scope"):
+        return None
+    from tradingagents.e1_routing import release_breakers
+
+    stats = release_breakers(config["e1_breaker_scope"])
+    return stats if config.get("e1_breaker_seconds") or stats["trips"] else None
+
+
 def _record_failure(exc, *, error, request, run_id, config, stats, failed_calls, started, e2_on, e2_before,
-                    e2_rows_before, fallback_log, fallback_mark, budget_guard, e3) -> None:
+                    e2_rows_before, fallback_log, fallback_mark, budget_guard, e3, retries=None,
+                    status="failed", deadline=None, started_at=None) -> None:
     """Write a failed run's token_usage.json with what is known, and attach it to the exception.
 
     Counts and tokens are those the run reported before it failed; nothing is estimated for calls
@@ -589,14 +856,18 @@ def _record_failure(exc, *, error, request, run_id, config, stats, failed_calls,
             "llm_provider": config.get("llm_provider"),
             "quick_think_llm": config.get("quick_think_llm"),
             "deep_think_llm": config.get("deep_think_llm"),
-            "elapsed_seconds": round(time.time() - started, 1),
+            "elapsed_seconds": round(time.monotonic() - started, 1),
         }
         usage["tokens_total"] = usage["tokens_in"] + usage["tokens_out"]
         usage.update(
-            run_id=run_id, source=request.source, status="failed", error=error,
+            run_id=run_id, source=request.source, status=status, error=error,
             llm_calls_failed=failed_calls, llm_calls_succeeded=max(counted.get("llm_calls", 0) - failed_calls, 0),
             tokens_note="tokens reported by the calls that completed; calls that failed reported none",
             e1_fallback_events=_new_lines(fallback_log, fallback_mark),
+            error_category=error_category(exc),
+            e1_breaker=_release_breakers(config),
+            sdk_retries_observed=retries.report() if retries is not None else None,
+            sdk_retries_observability=retries.observability if retries is not None else "not measured",
         )
         if e2_on:
             usage["e2_cache"] = _e2_delta(e2_before, e2_cache.stats_snapshot())
@@ -605,6 +876,8 @@ def _record_failure(exc, *, error, request, run_id, config, stats, failed_calls,
                 usage["e2_cache"]["saved_entries"] = rows_after - e2_rows_before
         if budget_guard is not None:
             usage["run_budget"] = budget_guard.snapshot()
+        if deadline is not None:
+            usage["run_deadline"] = deadline
         summary = None
         if e3.saved_path is not None:
             usage["e3_summary_path"] = str(e3.saved_path)
@@ -623,6 +896,9 @@ def _record_failure(exc, *, error, request, run_id, config, stats, failed_calls,
         results_dir.mkdir(parents=True, exist_ok=True)
         usage_path = results_dir / "token_usage.json"
         usage_path.write_text(json.dumps(usage, indent=2), encoding="utf-8")
+        _store_run(config, request, run_id, status, usage, e1_events=usage["e1_fallback_events"],
+                   e3_summary_path=e3.saved_path, error=error, error_category=usage["error_category"],
+                   started_at=started_at)
     except Exception:  # noqa: BLE001 - the run's own error is what the caller must see
         logger.warning("could not record the failed run %s", run_id, exc_info=True)
         return
@@ -632,10 +908,66 @@ def _record_failure(exc, *, error, request, run_id, config, stats, failed_calls,
             setattr(exc, name, value)
 
 
+def attach_e3_summary(request: AnalysisRequest, run_id: str, e3_summary_path) -> bool:
+    """Link an E3 summary saved after the run's record (the CLI's ``defer_e3_save``) into that record, with its
+    cost. Without it a CLI run's record names no E3 summary, so get_run_metrics reports its cost as unavailable.
+    Never raises; False when there is nothing to attach or the record could not be updated."""
+    from tradingagents import run_store
+
+    if e3_summary_path is None:
+        return False
+    try:
+        config = (dict(request.config) if request.config is not None else config_for_source(request.source))
+        record = run_store.load(config["results_dir"], run_id)
+        if record is None:
+            return False
+        record["e3_summary_path"] = str(Path(e3_summary_path).absolute())
+        usage = dict(record.get("usage") or {})
+        if "e3_cost" not in usage:
+            with contextlib.suppress(OSError, ValueError):
+                usage["e3_cost"] = e3_cost(json.loads(Path(e3_summary_path).read_text(encoding="utf-8")))
+        record["usage"] = usage
+        return run_store.save(config["results_dir"], record) is not None
+    except Exception:  # noqa: BLE001
+        logger.warning("could not attach the E3 summary to the run record for %s", run_id, exc_info=True)
+        return False
+
+
+def _store_run(config, request, run_id, status, usage, *, rating=None, final_state=None, e1_events=None,
+               e3_summary_path=None, error=None, error_category=None, started_at=None) -> None:
+    """The run's record in run_store, keyed by run ID (every outcome). Never raises.
+
+    ``started_at``: when the service began the run; without it (a worker the parent stopped), when the request's
+    deadline started (the dashboard click or the MCP call), else unknown (None)."""
+    from tradingagents import run_store
+
+    try:
+        if started_at is None and getattr(request, "deadline", None) is not None:
+            started_at = datetime.fromtimestamp(request.deadline.started_at, UTC).isoformat(timespec="seconds")
+        cost = None
+        if e3_summary_path is not None:
+            with contextlib.suppress(OSError, ValueError):
+                cost = e3_cost(json.loads(Path(e3_summary_path).read_text(encoding="utf-8")))
+        record = run_store.build_record(
+            run_id=run_id, source=request.source, status=status, ticker=request.ticker,
+            trade_date=request.trade_date, asset_type=request.asset_type, analysts=request.analysts,
+            usage={**usage, **({"e3_cost": cost} if cost is not None and "e3_cost" not in usage else {})},
+            rating=rating, needs_review=is_review(rating) if rating is not None else None,
+            final_state=final_state, e1_events=e1_events, e3_summary_path=e3_summary_path,
+            error=error, error_category=error_category, started_at=started_at)
+        run_store.save(config["results_dir"], record)
+    except Exception:  # noqa: BLE001
+        logger.warning("could not store the run record for %s", run_id, exc_info=True)
+
+
 def _e2_delta(before: dict, after: dict) -> dict:
     counts = {key: after[key] - before.get(key, 0) for key in ("hits", "misses", "skipped")}
     looked_up = counts["hits"] + counts["misses"]
     counts["hit_rate_pct"] = round(100 * counts["hits"] / looked_up, 1) if looked_up else None
+    for key in ("expired", "refreshed"):          # E2 freshness (Phase 3): shown only when it happened
+        delta = after.get(key, 0) - before.get(key, 0)
+        if delta:
+            counts[key] = delta
     return counts
 
 

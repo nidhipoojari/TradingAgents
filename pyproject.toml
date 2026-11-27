@@ -49,6 +49,11 @@ dashboard = [
 mcp = [
     "fastmcp>=4.2,<5",
 ]
+# Testing only: the live dashboard test drives a headless Chromium (scripts/smoke/live_dashboard.py).
+# Never needed to run the app. Set up with scripts/smoke/setup_playwright.sh (see PHASE3_SMOKE_TESTS.md).
+e2e = [
+    "playwright==1.52.0",
+]
 # Amazon Bedrock support (AWS SigV4 auth + boto3). Optional so the core install
 # stays lean: pip install "tradingagents[bedrock]".
 bedrock = [

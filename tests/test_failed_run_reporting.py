@@ -221,7 +221,13 @@ def test_a_worker_that_dies_still_leaves_a_record(worker_env):
     assert time.monotonic() - started < 25           # reported at once, not after the 30 s heartbeat limit
     failure = caught.value.analysis_failure
     assert failure["status"] == "failed" and failure["llm_calls_succeeded"] == 2
-    assert failure["llm_calls_in_flight"] == 1 and failure["e2_cache"] is None      # unknown, not invented
+    assert failure["llm_calls_in_flight"] == 1
+    # E2 and tool counts survive from the worker's last checkpoint, labelled as a lower bound.
+    view = failure["worker_checkpoint"]
+    assert view["basis"].startswith("last checkpoint") and view["taken_seconds_before_failure"] >= 0
+    assert failure["tool_calls"] == view["tool_calls_started"] >= 1
+    assert failure["e2_cache"]["misses"] >= 1 and failure["e2_cache"]["complete"] is False
+    assert failure["e2_cache"]["saved_entries"] == failure["e2_cache"]["misses"]
     assert failure["tokens_in"] == 200 and failure["tokens_out"] == 40               # the two reported calls
     [summary] = [json.loads(p.read_text()) for p in (worker_env / "e3").glob("*_e3.json")]
     assert summary["status"] == "failed" and summary["terminated"] is True
@@ -256,7 +262,9 @@ def test_the_dashboard_keeps_and_shows_a_failed_runs_record():
     assert lines[0] == f"Run ID {job.run_id}."
     text = "\n".join(lines)
     assert "4 LLM call(s) (2 succeeded, 2 failed); 7,021 input and 1,464 output tokens" in text
-    assert "E1 backup-model switches:** 2" in text and "5 misses, 5 saved" in text and "$0.005766" in text
+    # One call moved to the backup; the second line is the backup's own failure, not a switch.
+    assert "E1 backup-model switches:** 1 (backup failed 1x)" in text
+    assert "5 misses, 5 saved" in text and "$0.005766" in text
     assert app.failure_lines("R", None) == ["Run ID R.", "No usage was recorded before the failure."]
 
 
@@ -287,6 +295,7 @@ def test_the_dashboard_page_shows_a_failed_run(tmp_path, monkeypatch, offline): 
         time.sleep(0.2)
         page.run()
     assert not page.exception
-    assert any("The analysis failed: RuntimeError: 503 UNAVAILABLE" in e.value for e in page.error)
+    assert any("The analysis failed (provider_unavailable): RuntimeError: 503 UNAVAILABLE" in e.value
+               for e in page.error)
     shown = " ".join(m.value for m in page.markdown)
     assert "Run ID " in shown and "Before it failed:** 3 LLM call(s) (2 succeeded, 1 failed)" in shown

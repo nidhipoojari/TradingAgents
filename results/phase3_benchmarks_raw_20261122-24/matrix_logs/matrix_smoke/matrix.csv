@@ -1,0 +1,2 @@
+ticker,date,analysts,depth,scenario,source,expected_calls,call_limit,outcome,rating,seconds_scaled,llm_calls,tokens_in,tokens_out,e1_backup_calls,e1_breaker_skips,e1_backup_failures,e2_hits,e2_misses,budget_cost_usd,e3_cost_usd
+NVDA,2026-10-23,market,shallow,ok,dashboard,10,15,completed,Overweight,4.89,10,1000,200,0,0,0,0,2,0.0008,

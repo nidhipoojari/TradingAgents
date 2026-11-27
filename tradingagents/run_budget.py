@@ -1,8 +1,9 @@
 """Per-run LLM limits: a maximum number of model calls and an estimated-cost ceiling.
 
-Opt-in: a run has limits only when its ``AnalysisRequest.budget`` is set. The dashboard sets one
-by default (``dashboard_budget_from_env``); the CLI and the MCP server do not, so their behavior
-is unchanged.
+Opt-in: a run has limits only when its ``AnalysisRequest.budget`` is set. The dashboard (F1,
+``dashboard_budget``) and the MCP server (F2, ``mcp_budget``) set one by default; the CLI does not, so its
+behavior is unchanged. The MCP limits are read from the server's environment only: an MCP client
+cannot raise or remove them.
 
 How the guard works (``BudgetGuard``, a LangChain callback run in the process that makes the calls):
 
@@ -46,6 +47,9 @@ CALLS_ENV = "TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS"
 COST_ENV = "TRADINGAGENTS_DASHBOARD_MAX_COST_USD"
 DASHBOARD_DEFAULT_CALLS = 15
 DASHBOARD_DEFAULT_COST_USD = 0.04
+MCP_CALLS_ENV = "TRADINGAGENTS_MCP_MAX_LLM_CALLS"
+MCP_COST_ENV = "TRADINGAGENTS_MCP_MAX_COST_USD"
+MCP_DEFAULT_COST_USD = 0.04
 OUTPUT_RESERVE_TOKENS = 2000
 CHARS_PER_TOKEN = 3          # conservative: English text averages about 4 characters per token
 _OFF = {"0", "off", "none", "false", "no"}
@@ -98,6 +102,91 @@ def dashboard_budget_from_env() -> RunBudget | None:
     return budget if budget.active else None
 
 
+CALL_HEADROOM = 1.5           # room for E1 fallbacks and extra tool rounds above the expected count
+
+
+def expected_llm_calls(analysts: int, debate_rounds: int = 1, risk_rounds: int = 1) -> int:
+    """Model calls a run makes when every model answers first time and each analyst asks for its tools
+    once: 2 per analyst (tool request, report), 2 per debate round (bull, bear), the research manager,
+    the trader, 3 per risk round (aggressive, neutral, conservative) and the portfolio manager."""
+    return 2 * analysts + 2 * debate_rounds + 1 + 1 + 3 * risk_rounds + 1
+
+
+def call_limit_for(analysts: int, debate_rounds: int = 1, risk_rounds: int = 1) -> int:
+    """The default call limit for that workflow: the expected count x CALL_HEADROOM, rounded up.
+    Market only at depth 1: 10 expected -> 15. All four analysts at depth 1: 16 -> 24."""
+    return math.ceil(expected_llm_calls(analysts, debate_rounds, risk_rounds) * CALL_HEADROOM)
+
+
+def default_cost_ceiling() -> float | None:
+    """The configured cost ceiling (TRADINGAGENTS_DASHBOARD_MAX_COST_USD, default $0.04); None if 'off'."""
+    raw = (os.environ.get(COST_ENV) or "").strip()
+    if not raw:
+        return DASHBOARD_DEFAULT_COST_USD
+    if raw.lower() in _OFF:
+        return None
+    try:
+        return float(raw)
+    except ValueError:
+        raise ValueError(f"{COST_ENV}={raw!r} is not a number; use a number, or 0/off to switch it off") from None
+
+
+def dashboard_budget(analysts: int, debate_rounds: int = 1, risk_rounds: int = 1, *,
+                     cost_ceiling: float | None = None, approved: bool = False) -> RunBudget | None:
+    """The dashboard's limits for one run.
+
+    Calls: TRADINGAGENTS_DASHBOARD_MAX_LLM_CALLS when set (a number, or off), else ``call_limit_for`` the
+    chosen analysts and depth. Cost: the configured ceiling; a lower ``cost_ceiling`` is accepted, a
+    higher one only with ``approved=True`` (never raised automatically). Raises ValueError otherwise.
+    """
+    raw = (os.environ.get(CALLS_ENV) or "").strip()
+    if not raw:
+        calls = call_limit_for(analysts, debate_rounds, risk_rounds)
+    elif raw.lower() in _OFF:
+        calls = None
+    else:
+        try:
+            calls = int(raw)
+        except ValueError:
+            raise ValueError(f"{CALLS_ENV}={raw!r} is not a number; use a number, or 0/off to switch it off") from None
+    default = default_cost_ceiling()
+    cost = default
+    if cost_ceiling is not None:
+        if default is not None and cost_ceiling > default and not approved:
+            raise ValueError(f"raising the cost ceiling from ${default:.2f} to ${cost_ceiling:.2f} needs your "
+                             "explicit approval for this run")
+        cost = cost_ceiling
+    budget = RunBudget(calls, cost)
+    return budget if budget.active else None
+
+
+def _read_limit(name: str, default, kind):
+    """A limit from the environment: unset -> default, 0/off/none -> None (switched off), else a number.
+    Anything else raises ValueError, so a typo never silently removes a limit."""
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    if raw.lower() in _OFF:
+        return None
+    try:
+        return kind(raw)
+    except ValueError:
+        raise ValueError(f"{name}={raw!r} is not a number; use a number, or 0/off to switch it off") from None
+
+
+def mcp_budget(analysts: int, debate_rounds: int = 1, risk_rounds: int = 1) -> RunBudget | None:
+    """F2's limits for one MCP run, set by the server operator only (never by the MCP client).
+
+    Calls: TRADINGAGENTS_MCP_MAX_LLM_CALLS when set (a number, or off), else ``call_limit_for`` the requested
+    analysts and depth, as in the dashboard (market only: 15; all four analysts: 24). Cost:
+    TRADINGAGENTS_MCP_MAX_COST_USD, default $0.04 estimated. Raises ValueError on a malformed value.
+    """
+    calls = _read_limit(MCP_CALLS_ENV, call_limit_for(analysts, debate_rounds, risk_rounds), int)
+    cost = _read_limit(MCP_COST_ENV, MCP_DEFAULT_COST_USD, float)
+    budget = RunBudget(calls, cost)
+    return budget if budget.active else None
+
+
 def load_pricing() -> dict[str, dict[str, float]]:
     """The pricing E3 uses (E3_PRICING_JSON, USD per million tokens), or {} when none is configured."""
     path = os.environ.get("E3_PRICING_JSON")
@@ -108,11 +197,11 @@ def load_pricing() -> dict[str, dict[str, float]]:
             if isinstance(p, dict) and "input_per_million_usd" in p and "output_per_million_usd" in p}
 
 
-def check_pricing(budget: RunBudget | None, pricing: dict | None = None) -> None:
+def check_pricing(budget: RunBudget | None, pricing: dict | None = None, *, cost_env: str = COST_ENV) -> None:
     """Refuse a cost ceiling that cannot be enforced (no prices at all)."""
     if budget is not None and budget.max_cost_usd is not None and not (load_pricing() if pricing is None else pricing):
         raise ValueError("a per-run cost limit needs model prices: set E3_PRICING_JSON to a pricing file "
-                         f"(or switch the limit off with {COST_ENV}=off)")
+                         f"(or switch the limit off with {cost_env}=off)")
 
 
 class BudgetGuard(BaseCallbackHandler):
@@ -130,12 +219,21 @@ class BudgetGuard(BaseCallbackHandler):
         self._lock = threading.Lock()
         self.calls_started = 0
         self.refused = 0
-        self.charged_usd = 0.0
-        self._in_flight: dict[str, tuple[float, dict | None, int]] = {}
+        # The charged amount, by source (see snapshot()); their sum is what admission counts.
+        self.reported_usd = 0.0            # reported tokens x the model's own price
+        self.unpriced_usd = 0.0            # reported tokens of an unpriced model x the highest known price
+        self.unreported_usd = 0.0          # calls that reported no usage: reservation or input estimate
+        self._in_flight: dict[str, tuple[float, dict | None, bool, int]] = {}
         self.unpriced_calls = 0
-        self.calls_without_usage = 0
+        self.calls_without_usage = 0       # successful calls that reported no usage
         self.failed_calls = 0
+        self.failed_calls_with_usage = 0
         self.exhausted: str | None = None
+        self.retry_counter = None          # the service's SDK-retry observer, when one is installed
+
+    @property
+    def charged_usd(self) -> float:
+        return self.reported_usd + self.unpriced_usd + self.unreported_usd
 
     # ------------------------------------------------------------------ pricing
     def _price(self, model: str) -> tuple[dict | None, bool]:
@@ -168,7 +266,7 @@ class BudgetGuard(BaseCallbackHandler):
                 self.refused += 1
                 raise _CancelSignal("before a model call")      # the reason is in the stop's message
             limit_calls, limit_cost = self.budget.max_llm_calls, self.budget.max_cost_usd
-            committed = self.charged_usd + sum(r for r, _, _ in self._in_flight.values())
+            committed = self.charged_usd + sum(entry[0] for entry in self._in_flight.values())
             if limit_calls is not None and self.calls_started >= limit_calls:
                 tripped = f"call limit reached: {self.calls_started} of {limit_calls} LLM calls used"
             elif limit_cost is not None and committed + reservation > limit_cost:
@@ -181,7 +279,7 @@ class BudgetGuard(BaseCallbackHandler):
                 self.calls_started += 1
                 if not priced:
                     self.unpriced_calls += 1
-                self._in_flight[str(run_id)] = (reservation, price, tokens_in)
+                self._in_flight[str(run_id)] = (reservation, price, priced, tokens_in)
         if tripped:
             self.cancel.set()
             if self.on_exhausted is not None:
@@ -196,69 +294,105 @@ class BudgetGuard(BaseCallbackHandler):
         self._admit(run_id, serialized, metadata, sum(len(p or "") for p in prompts))
 
     # ------------------------------------------------------------------ reconciliation
+    def _charge_reported(self, price, priced, tokens_in, tokens_out) -> None:
+        cost = self._cost(price, tokens_in, tokens_out)
+        if priced:
+            self.reported_usd += cost
+        else:
+            self.unpriced_usd += cost
+
     def on_llm_end(self, response, *, run_id, **kwargs):
         from tradingagents.e3_tracing import _tokens
 
         tokens_in, tokens_out = _tokens(response)
         with self._lock:
-            reservation, price, _ = self._in_flight.pop(str(run_id), (None, None, 0))
+            reservation, price, priced, _ = self._in_flight.pop(str(run_id), (None, None, True, 0))
             if reservation is None:
                 return
             if tokens_in is not None and tokens_out is not None:
-                self.charged_usd += self._cost(price, tokens_in, tokens_out)
+                self._charge_reported(price, priced, tokens_in, tokens_out)
             else:                                   # no usage reported: keep the whole reservation
                 self.calls_without_usage += 1
-                self.charged_usd += reservation
+                self.unreported_usd += reservation
 
     def on_llm_error(self, error, *, run_id, **kwargs):
+        from tradingagents.e3_tracing import _tokens
+
+        response = kwargs.get("response")
+        tokens_in, tokens_out = _tokens(response) if response is not None else (None, None)
         with self._lock:
-            reservation, price, tokens_in = self._in_flight.pop(str(run_id), (None, None, 0))
+            reservation, price, priced, input_estimate = self._in_flight.pop(str(run_id), (None, None, True, 0))
             if reservation is None:
                 return
             self.failed_calls += 1
-            # A failed request reports no usage; it may still have been billed for its input.
-            self.charged_usd += self._cost(price, tokens_in, 0)
+            if tokens_in is not None and tokens_out is not None:
+                # A failed (e.g. streamed) call that still reported usage is charged that usage.
+                self.failed_calls_with_usage += 1
+                self._charge_reported(price, priced, tokens_in, tokens_out)
+            else:
+                # No usage reported: it may still have been billed for its input, so charge that estimate.
+                self.unreported_usd += self._cost(price, input_estimate, 0)
 
     # ------------------------------------------------------------------ reporting
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
-            reserved = sum(r for r, _, _ in self._in_flight.values())
+            reserved = sum(entry[0] for entry in self._in_flight.values())
+            charged = self.charged_usd
             return {
                 "max_llm_calls": self.budget.max_llm_calls,
                 "max_cost_usd": self.budget.max_cost_usd,
                 "llm_calls_started": self.calls_started,
                 "llm_calls_refused": self.refused,
                 "llm_calls_in_flight": len(self._in_flight),
-                "budget_cost_usd": round(self.charged_usd, 6),
+                # What the limit counts, split by where each part comes from. Only the first is computed
+                # from the provider's reported tokens; none of these is the provider's bill.
+                "reported_usage_cost_usd": round(self.reported_usd, 6),
+                "unpriced_usage_estimate_usd": round(self.unpriced_usd, 6),
+                "unreported_usage_estimate_usd": round(self.unreported_usd, 6),
+                "budget_cost_usd": round(charged, 6),
                 "reserved_in_flight_usd": round(reserved, 6),
+                "conservative_total_usd": round(charged + reserved, 6),
                 "failed_calls": self.failed_calls,
+                "failed_calls_with_usage": self.failed_calls_with_usage,
+                "sdk_retries_observed": self.retry_counter.report() if self.retry_counter is not None else None,
+                "sdk_retries_observability": (self.retry_counter.observability if self.retry_counter is not None
+                                              else "not measured"),
                 "calls_without_usage": self.calls_without_usage,
                 "unpriced_calls": self.unpriced_calls,
                 "exhausted": self.exhausted is not None,
                 "reason": self.exhausted,
-                "basis": ("conservative budget estimate: reported usage where available; a reservation of "
-                          f"prompt/{CHARS_PER_TOKEN} input + {OUTPUT_RESERVE_TOKENS} output tokens otherwise; "
-                          "unpriced models at the highest known price. Not the provider's bill."),
+                "basis": ("conservative budget accounting, not the provider's bill: reported tokens at the "
+                          "model's price; unpriced models at the highest known price; calls that reported no "
+                          f"usage at a reservation (prompt/{CHARS_PER_TOKEN} input + {OUTPUT_RESERVE_TOKENS} "
+                          "output tokens) or, if they failed, their input estimate. The provider may bill "
+                          "differently (failed or retried requests, its own token counts and prices)."),
             }
 
 
 def describe_snapshot(snapshot: dict | None) -> str:
-    """One line for people: what the run used against its limits."""
+    """One line for people: the run's use of its limits, with every estimated part labelled."""
     if not snapshot:
         return "Per-run limits: off"
     calls = f"{snapshot['llm_calls_started']}"
     if snapshot.get("max_llm_calls") is not None:
         calls += f" of {snapshot['max_llm_calls']}"
-    cost = f"${snapshot['budget_cost_usd']:.6f}"
+    total = f"${snapshot['budget_cost_usd']:.6f}"
     if snapshot.get("max_cost_usd") is not None:
-        cost += f" of ${snapshot['max_cost_usd']:.2f}"
-    line = f"Per-run limits: {calls} LLM calls; {cost} budget estimate"
+        total += f" of ${snapshot['max_cost_usd']:.2f}"
+    parts = [f"${snapshot.get('reported_usage_cost_usd', 0):.6f} from reported tokens"]
+    if snapshot.get("unpriced_usage_estimate_usd"):
+        parts.append(f"${snapshot['unpriced_usage_estimate_usd']:.6f} estimated for unpriced models")
+    if snapshot.get("unreported_usage_estimate_usd"):
+        parts.append(f"${snapshot['unreported_usage_estimate_usd']:.6f} estimated for calls that reported no usage")
+    if snapshot.get("reserved_in_flight_usd"):
+        parts.append(f"${snapshot['reserved_in_flight_usd']:.6f} reserved for calls still running")
+    line = (f"Per-run limits: {calls} LLM calls; budget accounting {total} "
+            f"(conservative, not a bill: {' + '.join(parts)})")
     extras = [f"{snapshot[k]} {label}" for k, label in (("llm_calls_refused", "refused"),
-                                                        ("unpriced_calls", "unpriced"),
-                                                        ("calls_without_usage", "without usage"))
+                                                        ("sdk_retries_observed", "hidden SDK retries"))
               if snapshot.get(k)]
     if extras:
-        line += " (" + ", ".join(extras) + ")"
+        line += "; " + ", ".join(extras)
     if snapshot.get("exhausted"):
         line += f". Stopped: {snapshot['reason']}"
     return line

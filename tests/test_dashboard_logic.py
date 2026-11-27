@@ -19,6 +19,16 @@ LIMITS = OrderLimits(max_notional=1000.0)
 TESTER = _issue("tester", "password")   # a signed-in approver
 
 
+@pytest.fixture(autouse=True)
+def _fresh_sign_in():
+    """A fresh signed-in approver for every test. A password confirmation lasts 5 minutes of wall-clock
+    time (identity.STEP_UP_SECONDS), so one issued once at collection expires in a run that reaches this
+    test late, or after a system clock step (+185.7 s on 2026-11-25 failed 4 tests in test_trade_rejection).
+    Set directly, not with monkeypatch, so a test's monkeypatch.undo() cannot bring back a stale one."""
+    global TESTER
+    TESTER = _issue("tester", "password")
+
+
 def _result(rating="Buy", ticker="NVDA", trade_date=TODAY, asset_type="stock", run_id="20261121-101500-ab12cd34"):
     return service.AnalysisResult(
         run_id=run_id, source="dashboard", ticker=ticker, trade_date=trade_date, asset_type=asset_type,
@@ -229,3 +239,16 @@ def test_a_spawned_worker_re_importing_the_page_runs_none_of_it(monkeypatch):
     page = Path(dashboard.__file__).with_name("app.py")
     module = runpy.run_path(str(page), run_name="__mp_main__")
     assert calls == [] and callable(module["main"])
+
+
+@pytest.mark.unit
+def test_the_e2_tile_says_off_when_e2_is_disabled_not_n_a():
+    """The service records usage["e2_cache"] only when E2 is on; the live run 20261127-111852-5a8696f8 (E2 off)
+    showed "n/a", which reads as missing data."""
+    from tradingagents.dashboard.app import e2_metric_text
+
+    assert e2_metric_text({}) == "off"
+    assert e2_metric_text({"e2_cache": {"hits": 0, "misses": 0, "skipped": 3, "hit_rate_pct": None}}) \
+        == "n/a (no cacheable requests)"
+    assert e2_metric_text({"e2_cache": {"hits": 14, "misses": 0, "hit_rate_pct": 100.0}}) == "100.0% (14/14)"
+    assert e2_metric_text({"e2_cache": {"hits": 0, "misses": 5, "hit_rate_pct": 0.0}}) == "0.0% (0/5)"

@@ -1,0 +1,31 @@
+163a164,177
+> def _incomplete_note(observed: bool, pricing, no_usage_calls: int, no_price_calls: int) -> str:
+>     """Why estimated_cost_usd is None, naming the actual cause (a call without usage is not a missing price)."""
+>     if not observed:
+>         return "Not calculated: no LLM call was observed."
+>     if not pricing:
+>         return "Not calculated: no model pricing was supplied (E3_PRICING_JSON)."
+>     reasons = []
+>     if no_usage_calls:
+>         reasons.append(f"{no_usage_calls} call(s) reported no token usage (no tokens are assumed for them)")
+>     if no_price_calls:
+>         reasons.append(f"{no_price_calls} call(s) used a model with no price in the pricing file")
+>     return "Not calculated: " + "; ".join(reasons) + "."
+> 
+> 
+237c251,253
+<         unpriced_calls = 0
+---
+>         unpriced_calls = 0          # Phase 2 field: calls not priced, for either reason below
+>         no_usage_calls = 0          # the provider reported no tokens (e.g. a failed 429)
+>         no_price_calls = 0          # tokens reported, but the model has no price
+250a267,270
+>                 if event["input_tokens"] is None or event["output_tokens"] is None:
+>                     no_usage_calls += 1
+>                 else:
+>                     no_price_calls += 1
+327c347,348
+<                           if cost_complete else "Not calculated: supply pricing for every model and ensure every LLM callback includes token usage."),
+---
+>                           if cost_complete else _incomplete_note(bool(observations), pricing, no_usage_calls,
+>                                                                   no_price_calls)),
