@@ -28,4 +28,4 @@ project's `.venv`). Per-run `work/` folders, SQLite caches and lock files are no
 | `12_full_suite_after_fixes/` | offline | full pytest and Ruff after fixes 1, 2, 4, 5 and 6 (before the CLI fix in `14_`) | 2,097 passed, 1 skipped, 0 failed; Ruff clean |
 | `13_claude_code_client/` | config | session-only `--mcp-config` files for connecting Claude Code as the MCP client (read-only guard; live) | not yet run by a person |
 | `14_fix_cli_e3_link/` | offline | **defect fixed:** CLI run records never linked their E3 summary, which is saved after the record, so the cost showed as unavailable | test added; `consistency_after/`: the real CLI entry now links it ($0.00018, as F1 and F2) |
-| `15_final_suite/` | offline | final full pytest and Ruff after every fix, the run behind the checkpoint commit | see `junit.xml` |
+| `15_final_suite/` | offline | final full pytest and Ruff after every fix, on exactly the code in checkpoint `68c10a8` | 2,098 passed, 1 skipped (Bedrock SDK not installed), 0 failed in 222.5 s; Ruff clean |
