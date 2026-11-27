@@ -500,7 +500,9 @@ def test_a_run_records_its_provenance_without_secrets(monkeypatch):
     info = provenance("live_gemini_langfuse.py", ["--approve-live-llm", "--max-cost", "0.04", "AIza-very-secret-value"])
     branch = subprocess.run(["git", "branch", "--show-current"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    assert (info["git_branch"], info["git_commit"]) == (branch, commit) and len(commit) == 40
+    # On a detached HEAD (a CI checkout) git names no branch, so a fallback name is recorded instead.
+    assert info["git_branch"] == branch if branch else info["git_branch"]
+    assert info["git_commit"] == commit and len(commit) == 40
     assert info["command"].endswith("scripts/smoke/live_gemini_langfuse.py --approve-live-llm --max-cost 0.04 '***'") or \
         info["command"].endswith("scripts/smoke/live_gemini_langfuse.py --approve-live-llm --max-cost 0.04 ***")
     assert "AIza-very-secret-value" not in json.dumps(info)

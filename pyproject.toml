@@ -39,6 +39,8 @@ dev = [
 # E3: Optional Langfuse tracing and cost monitoring
 e3 = [
     "langfuse>=3.0,<5.0",
+    # Langfuse's LangChain callback (used by E3) imports the full langchain package, not only langchain-core.
+    "langchain>=1.5,<2",
 ]
 # F1 (Phase 3): Streamlit dashboard with human-approved Alpaca paper trading
 dashboard = [

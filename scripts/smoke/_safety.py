@@ -44,7 +44,9 @@ def provenance(script: str, argv: list[str]) -> dict:
         "started_at_local": now.isoformat(timespec="seconds"),
         "started_at_utc": now.astimezone(UTC).isoformat(timespec="seconds"),
         "command": redact(shlex.join([Path(sys.executable).name, f"scripts/smoke/{script}", *argv])),
-        "git_branch": git("branch", "--show-current"),
+        # A CI checkout is a detached HEAD (no current branch): fall back to the CI's branch name.
+        "git_branch": (git("branch", "--show-current") or os.environ.get("GITHUB_HEAD_REF")
+                       or os.environ.get("GITHUB_REF_NAME") or "(detached HEAD)"),
         "git_commit": git("rev-parse", "HEAD"),
         "git_uncommitted_changes": bool(git("status", "--porcelain", "--untracked-files=no")),
         "secrets_note": "credentials are read from the environment and never written here; details are redacted",

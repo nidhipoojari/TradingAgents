@@ -579,17 +579,132 @@ def is_busy() -> bool:
     return _RUN_LOCK.locked()
 
 
+@dataclass
+class _Run:
+    """Everything one analysis run carries between its steps (set up, stream, then finish).
+
+    _run_locked used to hold all of this as local variables in one 240-line function; keeping it here
+    lets each step be a small function (lizard CCN <= 10) with exactly the same behaviour."""
+
+    request: Any
+    run_id: str
+    config: dict
+    trade_date: str
+    emit: Callable
+    cancel: threading.Event | None
+    guard: Any
+    deadline_guard: Any
+    limits: Any
+    retries: Any
+    adaptive: list
+    budget_guard: Any = None
+    stats: Any = None
+    e3: Any = None
+    failed_calls: Any = None
+    began_wall: float = 0.0
+    began_at: str = ""
+    e2_on: bool = False
+    e2_initial: Any = None
+    e2_rows_initial: Any = None
+    fallback_log: Path | None = None
+    fallback_initial: int = 0
+    started: float | None = None
+    e2_before: Any = None
+    fallback_mark: int | None = None
+    graph: Any = None
+    final_state: dict = field(default_factory=dict)
+
+    def stopped(self, stage: str) -> AnalysisCancelled:
+        """A deadline stop, a budget stop, or else a cancel by the caller (whichever tripped)."""
+        in_flight, prevented = (self.guard.in_flight, self.guard.prevented) if self.guard else (0, 0)
+        if self.deadline_guard is not None:
+            self.deadline_guard.check_analysis()   # a cancel sent because the deadline passed is a deadline stop
+        if self.deadline_guard is not None and self.deadline_guard.exhausted:
+            snapshot = self.deadline_guard.snapshot()
+            return AnalysisDeadlineExceeded(self.run_id, stage, in_flight,
+                                            prevented + snapshot["llm_calls_refused"], deadline=snapshot)
+        if self.budget_guard is not None and self.budget_guard.exhausted:
+            snapshot = self.budget_guard.snapshot()
+            return AnalysisBudgetExceeded(self.run_id, stage, in_flight,
+                                          prevented + snapshot["llm_calls_refused"], budget=snapshot)
+        return AnalysisCancelled(self.run_id, stage, in_flight, prevented)
+
+    def check(self, stage: str) -> None:
+        if self.deadline_guard is not None:
+            self.deadline_guard.check_analysis()        # also between steps, not only at model calls
+        if self.cancel is not None and self.cancel.is_set():
+            raise self.stopped(stage)
+
+    def started_or_began(self) -> float:
+        return self.started or self.began_wall
+
+    def e2_before_or_initial(self):
+        return self.e2_before or self.e2_initial
+
+    def fallback_mark_or_initial(self) -> int:
+        return self.fallback_mark if self.fallback_mark is not None else self.fallback_initial
+
+
 def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph_factory, defer_e3_save,
                 retries=None):
     # Imported here: the graph pulls in every LLM SDK, which a caller that only
     # builds requests (the MCP server listing its tools) need not pay for.
     from tradingagents.e3_cli_hook import E3Session
-    from tradingagents.graph.trading_graph import _validate_trade_date
 
     if graph_factory is None:
         from tradingagents.graph.trading_graph import TradingAgentsGraph as graph_factory
 
-    ticker, asset_type, portfolio = request.ticker, request.asset_type, request.portfolio
+    run = _prepare_run(request, on_event, cancel, retries)
+    run.check("before it started")
+    _attach_budget(run)
+    run.stats = stats_handler or StatsCallbackHandler()
+    run.e3 = E3Session.from_env(ticker=request.ticker, analysis_date=run.trade_date, run_id=run.run_id,
+                                source=request.source)
+    run.failed_calls = _FailedCallCounter()
+    callbacks = _run_callbacks(run, extra_callbacks)
+    _mark_run_start(run)
+
+    try:
+        try:
+            _stream_analysis(run, graph_factory, callbacks)
+        except _CancelSignal as signal:
+            raise run.stopped(str(signal)) from None
+        except AnalysisCancelled:
+            raise
+        except BaseException as exc:
+            # A step that failed because the run was cancelled under it is a cancellation.
+            if run.cancel is not None and run.cancel.is_set():
+                raise run.stopped("during a step") from exc
+            raise
+    except AnalysisCancelled as cancelled:
+        _finish_stopped(run, cancelled)
+        raise
+    except BaseException as exc:
+        _finish_failed(run, exc)
+        raise
+    return _finish_completed(run, defer_e3_save)
+
+
+def _attach_budget(run: _Run) -> None:
+    """The per-run call/cost limit, when the request has one."""
+    if run.limits is None:
+        return
+    # Raises ValueError for a cost limit without prices, before anything runs or is recorded.
+    run.budget_guard = BudgetGuard(run.limits, run.cancel, on_exhausted=lambda snapshot: run.emit(
+        AnalysisEvent(run.run_id, "budget", state=snapshot)))
+    run.budget_guard.retry_counter = run.retries
+
+
+def _run_callbacks(run: _Run, extra_callbacks) -> list:
+    """The limit, then the cancel guard, first: a refused call must not be counted as started by the others."""
+    guards = [g for g in (run.deadline_guard, run.budget_guard, run.guard) if g]
+    return [*guards, run.stats, *run.e3.callbacks, *extra_callbacks, run.failed_calls]
+
+
+def _prepare_run(request, on_event, cancel, retries) -> _Run:
+    """Validate the request and build the run's config, cancel event and guards (nothing runs yet)."""
+    from tradingagents.graph.trading_graph import _validate_trade_date
+
     trade_date = _validate_trade_date(request.trade_date)
     run_id = request.run_id or new_run_id()
     config = (copy.deepcopy(dict(request.config)) if request.config is not None
@@ -602,199 +717,175 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
     deadline = request.deadline
     if (limits is not None or deadline is not None) and cancel is None:
         cancel = threading.Event()          # a limit or deadline stops the run through the cancel path
-    guard = CancellationGuard(cancel) if cancel is not None else None
     emit = on_event or (lambda event: None)
-    budget_guard = None
     deadline_guard = (DeadlineGuard(deadline, cancel, on_exhausted=lambda snapshot: emit(
         AnalysisEvent(run_id, "deadline", state=snapshot))) if deadline is not None else None)
+    return _Run(request=request, run_id=run_id, config=config, trade_date=trade_date, emit=emit,
+                cancel=cancel, guard=CancellationGuard(cancel) if cancel is not None else None,
+                deadline_guard=deadline_guard, limits=limits, retries=retries, adaptive=adaptive)
 
-    def stopped(stage: str) -> AnalysisCancelled:
-        """A deadline stop, a budget stop, or else a cancel by the caller (whichever tripped)."""
-        in_flight, prevented = (guard.in_flight, guard.prevented) if guard else (0, 0)
-        if deadline_guard is not None:
-            deadline_guard.check_analysis()   # a cancel sent because the deadline passed is a deadline stop
-        if deadline_guard is not None and deadline_guard.exhausted:
-            snapshot = deadline_guard.snapshot()
-            return AnalysisDeadlineExceeded(run_id, stage, in_flight, prevented + snapshot["llm_calls_refused"],
-                                            deadline=snapshot)
-        if budget_guard is not None and budget_guard.exhausted:
-            snapshot = budget_guard.snapshot()
-            return AnalysisBudgetExceeded(run_id, stage, in_flight, prevented + snapshot["llm_calls_refused"],
-                                          budget=snapshot)
-        return AnalysisCancelled(run_id, stage, in_flight, prevented)
 
-    def check(stage: str) -> None:
-        if deadline_guard is not None:
-            deadline_guard.check_analysis()        # also between steps, not only at model calls
-        if cancel is not None and cancel.is_set():
-            raise stopped(stage)
+def _mark_run_start(run: _Run) -> None:
+    """Take the start marks before anything runs, for a failed run's record (a success measures from
+    its usual points)."""
+    run.began_wall = time.monotonic()      # durations only (a wall-clock step must not change them)
+    run.began_at = datetime.now(UTC).isoformat(timespec="seconds")     # the run record's started_at (display)
+    run.e2_on = bool(run.config.get("e2_cache_enabled", False) or e2_cache.is_enabled())
+    run.e2_initial = e2_cache.stats_snapshot()
+    run.e2_rows_initial = e2_cache.row_count(run.config.get("data_cache_dir")) if run.e2_on else None
+    run.fallback_log = Path(run.config["results_dir"]) / FALLBACK_LOG_NAME
+    run.fallback_initial = _size(run.fallback_log)
 
-    check("before it started")
-    if limits is not None:
-        # Raises ValueError for a cost limit without prices, before anything runs or is recorded.
-        budget_guard = BudgetGuard(limits, cancel, on_exhausted=lambda snapshot: emit(
-            AnalysisEvent(run_id, "budget", state=snapshot)))
-        budget_guard.retry_counter = retries
-    stats = stats_handler or StatsCallbackHandler()
-    e3 = E3Session.from_env(ticker=ticker, analysis_date=trade_date, run_id=run_id,
-                            source=request.source)
-    # The limit, then the cancel guard, first: a refused call must not be counted as started by the others.
-    failed_calls = _FailedCallCounter()
-    callbacks = [*([deadline_guard] if deadline_guard else []), *([budget_guard] if budget_guard else []),
-                 *([guard] if guard else []), stats,
-                 *e3.callbacks, *extra_callbacks, failed_calls]
-    # Taken before anything runs, for a failed run's record (a success measures from its usual points).
-    began_wall = time.monotonic()      # durations only (a wall-clock step must not change them)
-    began_at = datetime.now(UTC).isoformat(timespec="seconds")     # the run record's started_at (display)
-    e2_on = bool(config.get("e2_cache_enabled", False) or e2_cache.is_enabled())
-    e2_initial = e2_cache.stats_snapshot()
-    e2_rows_initial = e2_cache.row_count(config.get("data_cache_dir")) if e2_on else None
-    fallback_log = Path(config["results_dir"]) / FALLBACK_LOG_NAME
-    fallback_initial = _size(fallback_log)
-    started = e2_before = fallback_mark = None
 
+def _stream_analysis(run: _Run, graph_factory, callbacks) -> None:
+    """Build the graph, stream the workflow into run.final_state, then record the decision."""
+    request = run.request
+    ticker, asset_type, portfolio = request.ticker, request.asset_type, request.portfolio
+    run.check("before the graph was built")
+    run.e3.mark_analysis_started()
+    graph = run.graph = graph_factory(list(request.analysts), config=run.config, debug=False,
+                                      callbacks=callbacks)
+    run.started = time.monotonic()
+    run.e2_before = e2_cache.stats_snapshot()
+    run.fallback_mark = _size(run.fallback_log)
+
+    run.check("before the instrument lookup")
+    init_state = graph.create_run_state(ticker, run.trade_date, asset_type, portfolio)
+    args = graph.propagator.get_graph_args(callbacks=callbacks)
+    graph_config = args.setdefault("config", {})
+    # E3: one Langfuse session per run, tagged with the interface it came from.
+    graph_config.setdefault("metadata", {}).update({
+        "tradingagents_run_id": run.run_id,
+        "tradingagents_source": request.source,
+        "langfuse_session_id": run.run_id,
+        "langfuse_tags": [f"source:{request.source}"],
+    })
+
+    run.check("before the workflow started")
+    # Recompile with a checkpointer when enabled (#1249); torn down in the finally.
+    checkpoint_tid = graph.begin_checkpoint(ticker, run.trade_date, asset_type, portfolio)
     try:
-        try:
-            check("before the graph was built")
-            e3.mark_analysis_started()
-            graph = graph_factory(list(request.analysts), config=config, debug=False, callbacks=callbacks)
-            started = time.monotonic()
-            e2_before = e2_cache.stats_snapshot()
-            fallback_mark = _size(fallback_log)
+        if checkpoint_tid is not None:
+            graph_config.setdefault("configurable", {})["thread_id"] = checkpoint_tid
+            run.emit(AnalysisEvent(run.run_id, "checkpoint", resuming=bool(getattr(graph, "_resuming", False))))
+        # On resume, None continues the saved run instead of re-appending the state.
+        for messages, chunk in graph.stream_run(graph.checkpoint_input(init_state), **args):
+            run.check(f"after {progress_of(run.final_state, request.analysts)[0]} report(s)")
+            # Streamed chunks are per-node deltas; merged, they are the final state.
+            if chunk is not None:
+                run.final_state.update(chunk)
+            run.emit(AnalysisEvent(run.run_id, "step", tuple(messages), chunk,
+                                   progress=progress_of(run.final_state, request.analysts)))
 
-            check("before the instrument lookup")
-            init_state = graph.create_run_state(ticker, trade_date, asset_type, portfolio)
-            args = graph.propagator.get_graph_args(callbacks=callbacks)
-            graph_config = args.setdefault("config", {})
-            # E3: one Langfuse session per run, tagged with the interface it came from.
-            graph_config.setdefault("metadata", {}).update({
-                "tradingagents_run_id": run_id,
-                "tradingagents_source": request.source,
-                "langfuse_session_id": run_id,
-                "langfuse_tags": [f"source:{request.source}"],
-            })
+        run.check("before the decision was recorded")
+        # Clean run: log the decision, then drop the checkpoint. A failure
+        # above skips both, keeping the checkpoint for a resume.
+        graph.record_decision(ticker, run.trade_date, run.final_state)
+        graph.clear_checkpoint_on_success(ticker, run.trade_date, asset_type, portfolio)
+    finally:
+        graph.end_checkpoint()
 
-            check("before the workflow started")
-            # Recompile with a checkpointer when enabled (#1249); torn down in the finally.
-            checkpoint_tid = graph.begin_checkpoint(ticker, trade_date, asset_type, portfolio)
-            final_state: dict = {}
-            try:
-                if checkpoint_tid is not None:
-                    graph_config.setdefault("configurable", {})["thread_id"] = checkpoint_tid
-                    emit(AnalysisEvent(run_id, "checkpoint",
-                                       resuming=bool(getattr(graph, "_resuming", False))))
-                # On resume, None continues the saved run instead of re-appending the state.
-                for messages, chunk in graph.stream_run(graph.checkpoint_input(init_state), **args):
-                    check(f"after {progress_of(final_state, request.analysts)[0]} report(s)")
-                    # Streamed chunks are per-node deltas; merged, they are the final state.
-                    if chunk is not None:
-                        final_state.update(chunk)
-                    emit(AnalysisEvent(run_id, "step", tuple(messages), chunk,
-                                       progress=progress_of(final_state, request.analysts)))
 
-                check("before the decision was recorded")
-                # Clean run: log the decision, then drop the checkpoint. A failure
-                # above skips both, keeping the checkpoint for a resume.
-                graph.record_decision(ticker, trade_date, final_state)
-                graph.clear_checkpoint_on_success(ticker, trade_date, asset_type, portfolio)
-            finally:
-                graph.end_checkpoint()
-        except _CancelSignal as signal:
-            raise stopped(str(signal)) from None
-        except AnalysisCancelled:
-            raise
-        except BaseException as exc:
-            # A step that failed because the run was cancelled under it is a cancellation.
-            if cancel is not None and cancel.is_set():
-                raise stopped("during a step") from exc
-            raise
-    except AnalysisCancelled as cancelled:
-        # The graph has unwound: LangGraph waited for every running task, so nothing
-        # of this run executes past here and the lock can be released.
-        cancelled.mark_released()
-        e3.mark_analysis_finished()
-        if retries is not None:
-            e3.sdk_retries_observed = retries.report()
-        if isinstance(cancelled, AnalysisDeadlineExceeded):
-            cancelled.deadline = deadline_guard.snapshot()
-            e3.mark_deadline_exceeded(str(cancelled), cancelled.deadline)
-            if budget_guard is not None:
-                e3.run_budget = budget_guard.snapshot()
-        elif isinstance(cancelled, AnalysisBudgetExceeded):
-            cancelled.budget = budget_guard.snapshot()          # final: calls in flight have returned
-            e3.mark_budget_exceeded(str(cancelled), cancelled.budget)
-        else:
-            e3.mark_cancelled(str(cancelled))
-        e3.save()
-        if not isinstance(cancelled, AnalysisDeadlineExceeded):
-            _release_breakers(config)          # (a deadline stop releases them in its record below)
-            # A budget stop or a cancel writes no token_usage.json; its run record says how it ended.
-            stopped_usage = {**stats.get_stats(), "elapsed_seconds": round(time.monotonic() - (started or began_wall), 1)}
-            if getattr(cancelled, "budget", None):
-                stopped_usage["run_budget"] = cancelled.budget
-            _store_run(config, request, run_id,
-                       "budget_exceeded" if isinstance(cancelled, AnalysisBudgetExceeded) else "cancelled",
-                       stopped_usage, e1_events=_new_lines(fallback_log, fallback_initial),
-                       e3_summary_path=e3.saved_path, error=sanitize_error(cancelled),
-                       error_category=error_category(cancelled), started_at=began_at)
-        if isinstance(cancelled, AnalysisDeadlineExceeded):
-            # Keep what the run recorded (as for a failure), labelled as a deadline stop.
-            _record_failure(cancelled, error=sanitize_error(cancelled), request=request, run_id=run_id,
-                            config=config, stats=stats, failed_calls=failed_calls.failed,
-                            started=started or began_wall, e2_on=e2_on, e2_before=e2_before or e2_initial,
-                            e2_rows_before=e2_rows_initial, fallback_log=fallback_log,
-                            fallback_mark=fallback_mark if fallback_mark is not None else fallback_initial,
-                            budget_guard=budget_guard, e3=e3, retries=retries, status="deadline_exceeded",
-                            deadline=cancelled.deadline, started_at=began_at)
-        raise
-    except BaseException as exc:
-        e3.mark_analysis_finished()
-        error = sanitize_error(exc)
-        e3.mark_failed(error)
-        if retries is not None:
-            e3.sdk_retries_observed = retries.report()
-        if budget_guard is not None:
-            e3.run_budget = budget_guard.snapshot()
-        e3.save()
-        _record_failure(exc, error=error, request=request, run_id=run_id, config=config, stats=stats,
-                        failed_calls=failed_calls.failed, started=started or began_wall, started_at=began_at,
-                        e2_on=e2_on, e2_before=e2_before or e2_initial, e2_rows_before=e2_rows_initial,
-                        fallback_log=fallback_log,
-                        fallback_mark=fallback_mark if fallback_mark is not None else fallback_initial,
-                        budget_guard=budget_guard, e3=e3, retries=retries)
-        raise
+def _record_failure_for(run: _Run, exc: BaseException, error: str, **extra) -> None:
+    _record_failure(exc, error=error, request=run.request, run_id=run.run_id, config=run.config,
+                    stats=run.stats, failed_calls=run.failed_calls.failed, started=run.started_or_began(),
+                    started_at=run.began_at, e2_on=run.e2_on, e2_before=run.e2_before_or_initial(),
+                    e2_rows_before=run.e2_rows_initial, fallback_log=run.fallback_log,
+                    fallback_mark=run.fallback_mark_or_initial(), budget_guard=run.budget_guard, e3=run.e3,
+                    retries=run.retries, **extra)
+
+
+def _finish_stopped(run: _Run, cancelled: AnalysisCancelled) -> None:
+    """The graph has unwound: LangGraph waited for every running task, so nothing of this run executes
+    past here and the lock can be released. Save E3 and the run record, labelled by how it stopped."""
+    e3 = run.e3
+    cancelled.mark_released()
     e3.mark_analysis_finished()
+    if run.retries is not None:
+        e3.sdk_retries_observed = run.retries.report()
+    if isinstance(cancelled, AnalysisDeadlineExceeded):
+        cancelled.deadline = run.deadline_guard.snapshot()
+        e3.mark_deadline_exceeded(str(cancelled), cancelled.deadline)
+        if run.budget_guard is not None:
+            e3.run_budget = run.budget_guard.snapshot()
+        e3.save()
+        # Keep what the run recorded (as for a failure), labelled as a deadline stop; this also
+        # releases the breakers.
+        _record_failure_for(run, cancelled, sanitize_error(cancelled), status="deadline_exceeded",
+                            deadline=cancelled.deadline)
+        return
+    if isinstance(cancelled, AnalysisBudgetExceeded):
+        cancelled.budget = run.budget_guard.snapshot()          # final: calls in flight have returned
+        e3.mark_budget_exceeded(str(cancelled), cancelled.budget)
+    else:
+        e3.mark_cancelled(str(cancelled))
+    e3.save()
+    _release_breakers(run.config)
+    # A budget stop or a cancel writes no token_usage.json; its run record says how it ended.
+    stopped_usage = {**run.stats.get_stats(),
+                     "elapsed_seconds": round(time.monotonic() - run.started_or_began(), 1)}
+    if getattr(cancelled, "budget", None):
+        stopped_usage["run_budget"] = cancelled.budget
+    _store_run(run.config, run.request, run.run_id,
+               "budget_exceeded" if isinstance(cancelled, AnalysisBudgetExceeded) else "cancelled",
+               stopped_usage, e1_events=_new_lines(run.fallback_log, run.fallback_initial),
+               e3_summary_path=e3.saved_path, error=sanitize_error(cancelled),
+               error_category=error_category(cancelled), started_at=run.began_at)
 
-    rating = run_rating(final_state)
+
+def _finish_failed(run: _Run, exc: BaseException) -> None:
+    e3 = run.e3
+    e3.mark_analysis_finished()
+    error = sanitize_error(exc)
+    e3.mark_failed(error)
+    if run.retries is not None:
+        e3.sdk_retries_observed = run.retries.report()
+    if run.budget_guard is not None:
+        e3.run_budget = run.budget_guard.snapshot()
+    e3.save()
+    _record_failure_for(run, exc, error)
+
+
+def _completed_usage(run: _Run) -> dict:
+    """token_usage.json for a completed run: stats, models, time, and the E1/E2/budget/deadline extras."""
+    config = run.config
     usage = {
-        **stats.get_stats(),
+        **run.stats.get_stats(),
         "llm_provider": config.get("llm_provider"),
         "quick_think_llm": config.get("quick_think_llm"),
         "deep_think_llm": config.get("deep_think_llm"),
-        "elapsed_seconds": round(time.monotonic() - started, 1),
+        "elapsed_seconds": round(time.monotonic() - run.started, 1),
     }
     usage["tokens_total"] = usage["tokens_in"] + usage["tokens_out"]
     # E2: this run's own hits and misses, not the process's running total.
     if config.get("e2_cache_enabled", False) or e2_cache.is_enabled():
-        usage["e2_cache"] = _e2_delta(e2_before, e2_cache.stats_snapshot())
-    usage["run_id"] = run_id
-    usage["source"] = request.source
-    if budget_guard is not None:
-        usage["run_budget"] = budget_guard.snapshot()
-        e3.run_budget = usage["run_budget"]
-    if deadline is not None:
+        usage["e2_cache"] = _e2_delta(run.e2_before, e2_cache.stats_snapshot())
+    usage["run_id"] = run.run_id
+    usage["source"] = run.request.source
+    if run.budget_guard is not None:
+        usage["run_budget"] = run.budget_guard.snapshot()
+        run.e3.run_budget = usage["run_budget"]
+    if run.request.deadline is not None:
         from tradingagents.run_deadline import outcome
 
-        usage["run_deadline"] = outcome(deadline)
+        usage["run_deadline"] = outcome(run.request.deadline)
     breaker_stats = _release_breakers(config)
     if breaker_stats is not None:
         usage["e1_breaker"] = breaker_stats
-    if adaptive:
-        usage["e1_adaptive"] = adaptive
-    if retries is not None:
-        e3.sdk_retries_observed = retries.report()
+    if run.adaptive:
+        usage["e1_adaptive"] = run.adaptive
+    return usage
 
-    results_dir = run_directory(config, ticker, trade_date)
+
+def _finish_completed(run: _Run, defer_e3_save: bool) -> AnalysisResult:
+    request, e3, final_state = run.request, run.e3, run.final_state
+    e3.mark_analysis_finished()
+    rating = run_rating(final_state)
+    usage = _completed_usage(run)
+    if run.retries is not None:
+        e3.sdk_retries_observed = run.retries.report()
+
+    results_dir = run_directory(run.config, request.ticker, run.trade_date)
     results_dir.mkdir(parents=True, exist_ok=True)
     usage_path = results_dir / "token_usage.json"
     usage_path.write_text(json.dumps(usage, indent=2), encoding="utf-8")
@@ -802,18 +893,18 @@ def _run_locked(request, on_event, cancel, stats_handler, extra_callbacks, graph
     e3.mark_completed(decision=final_state.get("final_trade_decision"))
     if not defer_e3_save:
         e3.save()
-    fallback_events = _new_lines(fallback_log, fallback_initial)
-    _store_run(config, request, run_id, "completed", usage, rating=rating, final_state=final_state,
-               e1_events=fallback_events, e3_summary_path=e3.saved_path, started_at=began_at)
+    fallback_events = _new_lines(run.fallback_log, run.fallback_initial)
+    _store_run(run.config, request, run.run_id, "completed", usage, rating=rating, final_state=final_state,
+               e1_events=fallback_events, e3_summary_path=e3.saved_path, started_at=run.began_at)
 
     return AnalysisResult(
-        run_id=run_id, source=request.source, ticker=ticker, trade_date=trade_date,
-        asset_type=asset_type, analysts=request.analysts, rating=rating,
+        run_id=run.run_id, source=request.source, ticker=request.ticker, trade_date=run.trade_date,
+        asset_type=request.asset_type, analysts=request.analysts, rating=rating,
         final_state=final_state, usage=usage, results_dir=results_dir, usage_path=usage_path,
         e3_summary_path=e3.saved_path,
         # From the run's start: an adaptive-routing decision is logged while the graph is built.
         fallback_events=fallback_events,
-        graph=graph, e3=e3,
+        graph=run.graph, e3=e3,
     )
 
 
