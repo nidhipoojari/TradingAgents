@@ -456,18 +456,47 @@ def _metrics(result):
 
 
 # ------------------------------------------------------------------ paper trade
+# paper_trade draws the trade panel in order: account metrics, then (unless the order was already sent,
+# the proposal is not allowed, or it was rejected) the order form and its Reject / Submit buttons.
+# Each step is its own helper so that every function stays small (lizard CCN <= 10).
 def paper_trade(result):
+    loaded = _load_trade_panel(result)
+    if loaded is None:
+        return
+    broker, limits, panel = loaded
+    _account_metrics(result, panel, limits)
+    if _show_sent_order(panel):
+        return
+    if not panel.proposal.allowed:
+        st.warning(panel.proposal.reason)
+        return
+    st.markdown(f"**{panel.proposal.reason}**")
+    identity = _identity()
+    decisions = _decisions()
+    if _show_rejection(panel, result, decisions, identity):
+        return
+    if identity is None and auth.auth_required():
+        st.info("Sign in (sidebar) to approve or reject a paper order.")
+    order = _order_form(panel, result, decisions, identity)
+    _order_buttons(panel, result, broker, decisions, identity, order)
+
+
+def _load_trade_panel(result):
+    """(broker, limits, panel), or None after showing why paper trading is unavailable."""
     broker, error = _broker()
     if broker is None:
         st.info(f"Paper trading is off: {error}")
-        return
+        return None
     try:
         limits = op.OrderLimits.from_env()
         panel = trade.load_panel(result, broker, limits, proposals=_proposals())
     except (BrokerError, ValueError) as exc:
         st.error(str(exc))
-        return
+        return None
+    return broker, limits, panel
 
+
+def _account_metrics(result, panel, limits) -> None:
     cols = st.columns(5)
     cols[0].metric("Buying power", f"${panel.account.buying_power:,.2f}")
     cols[1].metric(f"{result.ticker} shares held", f"{panel.held_long_qty:g}")
@@ -477,34 +506,38 @@ def paper_trade(result):
         cols[4].metric("Market", "Open" if panel.clock.is_open else "Closed",
                        help=None if panel.clock.is_open else f"Next open {panel.clock.next_open}")
 
+
+def _show_sent_order(panel) -> bool:
+    """True (after saying so) when this run's one paper order was already placed."""
     receipts = st.session_state.setdefault("receipts", {})
     sent = receipts.get(panel.client_order_id) or panel.already_submitted
-    if sent:
-        if isinstance(sent, dict):   # from the ledger: placed in an earlier session
-            sent = (f"{sent.get('side')} {sent.get('qty')} {sent.get('symbol')}, "
-                    f"order {sent.get('order_id')}, status {sent.get('status')}")
-        st.success(f"This run's paper order was placed: {sent}. One order per analysis run.")
-        return
-    if not panel.proposal.allowed:
-        st.warning(panel.proposal.reason)
-        return
-    st.markdown(f"**{panel.proposal.reason}**")
-    identity = _identity()
-    decisions = _decisions()
-    rejection = decisions.rejection(panel.client_order_id)
-    if rejection is not None:
-        # Rejected: no order form, so nothing can be approved or sent until the person reopens it.
-        st.info(f"Trade proposal rejected by {rejection.get('user') or 'an unauthenticated user'} at "
-                f"{rejection.get('recorded_at')} UTC. No order was sent.")
-        if st.button("Reconsider this proposal", key=f"reconsider-{panel.client_order_id}",
-                     disabled=identity is None and auth.auth_required()):
-            trade.reconsider(panel, result, decisions, identity=identity)
-            _clear_approval(result.run_id)
-            st.rerun()
-        return
-    if identity is None and auth.auth_required():
-        st.info("Sign in (sidebar) to approve or reject a paper order.")
+    if not sent:
+        return False
+    if isinstance(sent, dict):   # from the ledger: placed in an earlier session
+        sent = (f"{sent.get('side')} {sent.get('qty')} {sent.get('symbol')}, "
+                f"order {sent.get('order_id')}, status {sent.get('status')}")
+    st.success(f"This run's paper order was placed: {sent}. One order per analysis run.")
+    return True
 
+
+def _show_rejection(panel, result, decisions, identity) -> bool:
+    """True when the proposal was rejected: no order form, so nothing can be approved or sent
+    until the person reopens it."""
+    rejection = decisions.rejection(panel.client_order_id)
+    if rejection is None:
+        return False
+    st.info(f"Trade proposal rejected by {rejection.get('user') or 'an unauthenticated user'} at "
+            f"{rejection.get('recorded_at')} UTC. No order was sent.")
+    if st.button("Reconsider this proposal", key=f"reconsider-{panel.client_order_id}",
+                 disabled=identity is None and auth.auth_required()):
+        trade.reconsider(panel, result, decisions, identity=identity)
+        _clear_approval(result.run_id)
+        st.rerun()
+    return True
+
+
+def _order_form(panel, result, decisions, identity) -> dict:
+    """Quantity, limit price, the stale-analysis tick and the approval tick; returns the order as entered."""
     side = panel.proposal.side.value
     kind = "limit"   # limit orders only: the fill can never pass the checked value
     if panel.clock is not None and not panel.clock.is_open:
@@ -537,36 +570,50 @@ def paper_trade(result):
     # Step-up: the password again for this order; a signed-in but unattended browser cannot approve.
     password = st.text_input("Your password, to approve this order", type="password",
                              key=f"stepup-{result.run_id}", disabled=identity is None)
+    return {"kind": kind, "qty": qty, "limit_price": limit_price, "stale_ack": stale_ack,
+            "confirmed": confirmed, "check": check, "password": password}
+
+
+def _order_buttons(panel, result, broker, decisions, identity, order) -> None:
     submit_col, reject_col = st.columns(2)
     if reject_col.button("Reject trade proposal", key=f"reject-{panel.client_order_id}",
                          disabled=identity is None and auth.auth_required(),
                          help="Decline this proposal: nothing is sent to Alpaca, and the decision is recorded."):
-        trade.reject(panel, result, decisions, identity=identity, qty=qty, limit_price=limit_price)
+        trade.reject(panel, result, decisions, identity=identity, qty=order["qty"],
+                     limit_price=order["limit_price"])
         _clear_approval(result.run_id)
         st.rerun()
-    if submit_col.button("Submit paper order", type="primary", disabled=not check.can_submit or not password,
+    if submit_col.button("Submit paper order", type="primary",
+                         disabled=not order["check"].can_submit or not order["password"],
                          key=f"submit-{panel.client_order_id}"):
+        _submit_order(panel, result, broker, decisions, identity, order)
+
+
+def _submit_order(panel, result, broker, decisions, identity, order) -> None:
+    """Re-check the password, then send the approved order; any refusal is shown and nothing is sent."""
+    qty, limit_price = order["qty"], order["limit_price"]
+    try:
         try:
-            try:
-                identity = auth.confirm_password(identity, password, store=_sessions())
-            except auth.AuthError as exc:
-                trade.record_failure(decisions, "password_failed", panel, result, qty=qty, limit_price=limit_price,
-                                     identity=identity, problems=[str(exc)])
-                raise
-            st.session_state["identity"] = identity
-            receipt = trade.submit(panel, result, broker, qty, confirmed=confirmed, identity=identity,
-                                   order_type=kind, limit_price=limit_price, stale_acknowledged=stale_ack,
-                                   decisions=decisions, proposals=_proposals())
+            identity = auth.confirm_password(identity, order["password"], store=_sessions())
         except auth.AuthError as exc:
-            st.error(f"Not sent: {exc}")
-        except op.OrderRejected as exc:
-            st.error("Not sent: " + "; ".join(exc.problems))
-        except BrokerError as exc:
-            st.error(f"Not sent: {exc}")
-        else:
-            receipts[panel.client_order_id] = (f"{receipt.side} {receipt.qty:g} {receipt.symbol}, "
-                                               f"order {receipt.order_id}, status {receipt.status}")
-            st.rerun()
+            trade.record_failure(decisions, "password_failed", panel, result, qty=qty, limit_price=limit_price,
+                                 identity=identity, problems=[str(exc)])
+            raise
+        st.session_state["identity"] = identity
+        receipt = trade.submit(panel, result, broker, qty, confirmed=order["confirmed"], identity=identity,
+                               order_type=order["kind"], limit_price=limit_price,
+                               stale_acknowledged=order["stale_ack"], decisions=decisions,
+                               proposals=_proposals())
+    except auth.AuthError as exc:
+        st.error(f"Not sent: {exc}")
+    except op.OrderRejected as exc:
+        st.error("Not sent: " + "; ".join(exc.problems))
+    except BrokerError as exc:
+        st.error(f"Not sent: {exc}")
+    else:
+        st.session_state.setdefault("receipts", {})[panel.client_order_id] = (
+            f"{receipt.side} {receipt.qty:g} {receipt.symbol}, order {receipt.order_id}, status {receipt.status}")
+        st.rerun()
 
 
 # ------------------------------------------------------------------ page
