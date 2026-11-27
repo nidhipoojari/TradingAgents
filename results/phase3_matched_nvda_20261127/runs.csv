@@ -1,0 +1,2 @@
+plan,run_id,ticker,tracing,exit_code,wall_seconds,llm_calls,tool_calls,tokens_in,tokens_out,tokens_total,cli_elapsed_seconds,cost_usd,e2_hits,e2_misses,e2_hit_rate_pct,e3_cost_usd,e3_llm_errors,e3_models,e3_llm_busy_seconds,e3_before_first_llm_seconds,e3_between_llm_seconds,e3_after_last_llm_seconds,rating,e1_fallback_lines,success
+phase3-match,01_NVDA,NVDA,True,0,27.422,10,3,27147,5246,32393,24.1,0.021259,0,5,0.0,0.021259,0,gemini-3.5-flash-lite,23.024,0.873,0.545,0.025,Hold,0,True
