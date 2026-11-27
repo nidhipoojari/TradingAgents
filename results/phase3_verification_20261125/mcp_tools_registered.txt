@@ -1,0 +1,5 @@
+analyze_stock ['analysts', 'include_reports', 'ticker', 'trade_date'] readOnly=True destructive=False
+get_report ['run_id', 'section'] readOnly=True destructive=False
+get_run_metrics ['run_id'] readOnly=True destructive=False
+list_recent_runs ['limit'] readOnly=True destructive=False
+propose_trade ['run_id'] readOnly=True destructive=False

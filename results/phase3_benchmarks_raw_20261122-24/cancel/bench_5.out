@@ -1,0 +1,16 @@
+Research Manager: provider does not support with_structured_output (); falling back to free-text generation
+Trader: provider does not support with_structured_output (); falling back to free-text generation
+Portfolio Manager: provider does not support with_structured_output (); falling back to free-text generation
+AFTER worker, call never returns, grace  2.0s: released 2.03s after cancel, terminated=True, busy=False
+Research Manager: provider does not support with_structured_output (); falling back to free-text generation
+Trader: provider does not support with_structured_output (); falling back to free-text generation
+Portfolio Manager: provider does not support with_structured_output (); falling back to free-text generation
+AFTER worker, call never returns, grace 10.0s: released 10.12s after cancel, terminated=True, busy=False
+Research Manager: provider does not support with_structured_output (); falling back to free-text generation
+Trader: provider does not support with_structured_output (); falling back to free-text generation
+Portfolio Manager: provider does not support with_structured_output (); falling back to free-text generation
+cold worker: first event after 2.62s, whole run 4.23s
+Research Manager: provider does not support with_structured_output (); falling back to free-text generation
+Trader: provider does not support with_structured_output (); falling back to free-text generation
+Portfolio Manager: provider does not support with_structured_output (); falling back to free-text generation
+warm worker: first event after 0.10s, whole run 2.00s

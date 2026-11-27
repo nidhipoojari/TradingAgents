@@ -1,0 +1,176 @@
+[
+  {
+    "name": "analyze_stock",
+    "description": "Run the TradingAgents multi-agent analysis (market, sentiment, news and fundamentals analysts, a bull/bear research debate, a trader and a risk debate) for one stock ticker and return the Portfolio Manager's rating (Buy, Overweight, Hold, Underweight, Sell, or REVIEW when no rating could be read) with the decision text. Read-only: it never places orders. Takes one to several minutes. Research output, not financial advice.",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ticker": {
+          "type": "string"
+        },
+        "trade_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "analysts": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "include_reports": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ticker"
+      ]
+    },
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Analyze stock",
+      "read_only_hint": true,
+      "destructive_hint": false,
+      "idempotent_hint": false,
+      "open_world_hint": true
+    }
+  },
+  {
+    "name": "get_report",
+    "description": "Return the saved reports of an earlier analysis run: analyst reports, the bull/bear investment debate, the investment and trader plans, the risk debate and the final decision, each truncated. section narrows it to one of: market, sentiment, news, fundamentals, investment_debate, investment_plan, trader_plan, risk_debate, final_decision. Reads saved files only; never re-runs the analysis.",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "run_id"
+      ]
+    },
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get report",
+      "read_only_hint": true,
+      "destructive_hint": false,
+      "idempotent_hint": true,
+      "open_world_hint": false
+    }
+  },
+  {
+    "name": "get_run_metrics",
+    "description": "Return the recorded metrics of an earlier run: E1 routing and backup-model events, E2 cache counts, E3 token usage and per-agent figures, estimated cost (an estimate, not provider billing), per-run limits, errors and timing. Reads saved files only; makes no model or market-data request.",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id"
+      ]
+    },
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get run metrics",
+      "read_only_hint": true,
+      "destructive_hint": false,
+      "idempotent_hint": true,
+      "open_world_hint": false
+    }
+  },
+  {
+    "name": "list_recent_runs",
+    "description": "List recent saved analysis runs, newest first, with run ID, ticker, trade date, source, status, rating and summary figures. limit: 1 to 50 (default 10).",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "default": 10,
+          "minimum": 1,
+          "type": "integer"
+        }
+      }
+    },
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List recent runs",
+      "read_only_hint": true,
+      "destructive_hint": false,
+      "idempotent_hint": true,
+      "open_world_hint": false
+    }
+  },
+  {
+    "name": "propose_trade",
+    "description": "Say what paper trade the F1 rules would allow for an earlier run's rating (a buy, a sell only to reduce a long position, or no trade, with the reason and the order rules). Read-only: it never approves, signs, submits, cancels or executes an order; a signed-in person decides in the TradingAgents dashboard. Research output, not financial advice.",
+    "input_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "run_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id"
+      ]
+    },
+    "output_schema": {
+      "additionalProperties": true,
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Propose trade",
+      "read_only_hint": true,
+      "destructive_hint": false,
+      "idempotent_hint": true,
+      "open_world_hint": false
+    }
+  }
+]

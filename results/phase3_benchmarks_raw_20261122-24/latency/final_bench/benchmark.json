@@ -1,0 +1,174 @@
+{
+ "profiles": {
+  "10-call": {
+   "source": "results/phase3_smoke/20261122_225216/e3/NVDA_2026-10-23_20261122-225220-bf036521_e3.json",
+   "market_tool_rounds": 1,
+   "data_seconds_per_tool": 0.26,
+   "reference_wall_seconds": 25.805,
+   "llm_seconds": 24.12
+  },
+  "12-call": {
+   "source": "consistency_evaluation/nvda_live/run_1/e3/NVDA_2026-10-23_27d3d8aa_e3.json",
+   "market_tool_rounds": 3,
+   "data_seconds_per_tool": 4.443,
+   "reference_wall_seconds": 40.64,
+   "llm_seconds": 26.41
+  }
+ },
+ "scenarios": {
+  "10-call, warm worker, E2 cold": {
+   "n": 5,
+   "median": 24.67,
+   "p95": 24.73,
+   "max": 24.73,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 0.55,
+   "runs": [
+    {
+     "seconds": 24.63,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.66,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.67,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.67,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.73,
+     "outcome": "completed",
+     "llm_calls": 10
+    }
+   ]
+  },
+  "12-call, warm worker, E2 cold (live-data delays)": {
+   "n": 5,
+   "median": 35.71,
+   "p95": 35.79,
+   "max": 35.79,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 9.3,
+   "runs": [
+    {
+     "seconds": 35.79,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 35.7,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 35.72,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 35.71,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 35.64,
+     "outcome": "completed",
+     "llm_calls": 12
+    }
+   ]
+  },
+  "12-call, primary 503 on its first 2 calls, backup covers them": {
+   "n": 3,
+   "median": 38.49,
+   "p95": 38.57,
+   "max": 38.57,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 12.08,
+   "runs": [
+    {
+     "seconds": 38.49,
+     "outcome": "completed",
+     "llm_calls": 13
+    },
+    {
+     "seconds": 38.45,
+     "outcome": "completed",
+     "llm_calls": 13
+    },
+    {
+     "seconds": 38.57,
+     "outcome": "completed",
+     "llm_calls": 13
+    }
+   ]
+  },
+  "10-call, every primary call 503, backup answers": {
+   "n": 3,
+   "median": 27.53,
+   "p95": 27.54,
+   "max": 27.54,
+   "outcomes": [
+    "completed"
+   ],
+   "runs": [
+    {
+     "seconds": 27.53,
+     "outcome": "completed",
+     "llm_calls": 11
+    },
+    {
+     "seconds": 27.54,
+     "outcome": "completed",
+     "llm_calls": 11
+    },
+    {
+     "seconds": 27.49,
+     "outcome": "completed",
+     "llm_calls": 11
+    }
+   ]
+  },
+  "10-call, primary 503 on its first 2 calls, backup covers them": {
+   "n": 3,
+   "median": 27.48,
+   "p95": 27.51,
+   "max": 27.51,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 3.36,
+   "runs": [
+    {
+     "seconds": 27.51,
+     "outcome": "completed",
+     "llm_calls": 11
+    },
+    {
+     "seconds": 27.46,
+     "outcome": "completed",
+     "llm_calls": 11
+    },
+    {
+     "seconds": 27.48,
+     "outcome": "completed",
+     "llm_calls": 11
+    }
+   ]
+  }
+ }
+}

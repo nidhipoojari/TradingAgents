@@ -1,6 +1,5 @@
 """Running one analysis from the CLI: build the graph, stream it into the live view, save the report."""
 
-import json
 import os
 import sys
 import time
@@ -26,8 +25,8 @@ from cli.display import (
 )
 from cli.selections import depth_from_env, get_user_selections, unattended_gaps
 from cli.stats_handler import StatsCallbackHandler
+from tradingagents import service
 from tradingagents.agents.rating import is_review, run_rating
-from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.graph.analyst_execution import (
     build_analyst_execution_plan,
@@ -41,16 +40,16 @@ def _run_directory(config: dict, ticker: str, trade_date: str) -> Path:
     Every other path that interpolates a ticker checks it first; a value of
     ".." here would place the run outside the results directory.
     """
-    return Path(config["results_dir"]) / safe_ticker_component(ticker) / trade_date
+    return service.run_directory(config, ticker, trade_date)
 
 
-def _announce_checkpoint_state(graph, ticker: str, trade_date: str) -> None:
+def _announce_checkpoint_state(resuming: bool, ticker: str, trade_date: str) -> None:
     """Say whether this run resumed a saved one, where the user can see it.
 
     The graph logs this, but nothing in the CLI configures logging and the live
     view owns the screen, so a resume was invisible.
     """
-    if getattr(graph, "_resuming", False):
+    if resuming:
         message_buffer.add_message(
             "System", f"Resuming the saved run for {ticker} on {trade_date}"
         )
@@ -114,15 +113,8 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
 
     config = _build_run_config(selections, checkpoint)
 
+    # Watched live by the footer; the shared service attaches it (with E3) to the run.
     stats_handler = StatsCallbackHandler()
-
-    # E3: Langfuse tracing and local metrics
-    from tradingagents.e3_cli_hook import E3Session
-    e3 = E3Session.from_env(
-        ticker=selections["ticker"],
-        analysis_date=selections["analysis_date"],
-    )
-    active_callbacks = [stats_handler] + e3.callbacks
 
     # Normalize analyst selection to predefined order (selection is a 'set', order is fixed)
     selected_set = {analyst.value for analyst in selections["analysts"]}
@@ -130,11 +122,14 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
     analyst_execution_plan = build_analyst_execution_plan(selected_analyst_keys)
     analyst_wall_time_tracker = AnalystWallTimeTracker(analyst_execution_plan)
 
-    graph = TradingAgentsGraph(
-        selected_analyst_keys,
+    request = service.AnalysisRequest(
+        ticker=selections["ticker"],
+        trade_date=selections["analysis_date"],
+        source="cli",
+        asset_type=selections["asset_type"],
+        analysts=tuple(selected_analyst_keys),
         config=config,
-        debug=True,
-        callbacks=active_callbacks,
+        portfolio=portfolio,
     )
 
     message_buffer.init_for_analysis(selected_analyst_keys)
@@ -231,150 +226,122 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
         )
         render_progress(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
 
-        # The same initial state propagate() builds, with the resolved
-        # instrument identity; the graph's Memory Log step settles past
-        # decisions and loads their lessons alongside the analysts.
-        init_agent_state = graph.create_run_state(
-            selections["ticker"], selections["analysis_date"], selections["asset_type"], portfolio
-        )
-        # Pass callbacks to graph config for tool execution tracking
-        # (LLM tracking is handled separately via LLM constructor)
-        args = graph.propagator.get_graph_args(callbacks=active_callbacks)
+        # The shared analysis service (tradingagents/service.py) builds the graph,
+        # attaches the counters and E3 tracing, streams the run with checkpoint
+        # resume, records the decision and writes token_usage.json. This view only
+        # turns its events into the live display.
+        def on_event(event):
+            if event.kind == "checkpoint":
+                _announce_checkpoint_state(event.resuming, selections["ticker"], selections["analysis_date"])
+                return
+            messages, chunk = event.messages, event.state
+            for message in messages:
+                msg_id = getattr(message, "id", None)
+                if msg_id is not None:
+                    if msg_id in message_buffer._processed_message_ids:
+                        continue
+                    message_buffer._processed_message_ids.add(msg_id)
 
-        # Recompile with a checkpointer and inject the thread_id so --checkpoint
-        # actually saves and resumes on the CLI path (#1249); a no-op when
-        # checkpointing is disabled. Torn down in the finally below.
-        checkpoint_tid = graph.begin_checkpoint(
-            selections["ticker"], selections["analysis_date"], selections["asset_type"], portfolio
-        )
-        if checkpoint_tid is not None:
-            args.setdefault("config", {}).setdefault("configurable", {})["thread_id"] = checkpoint_tid
-            _announce_checkpoint_state(graph, selections["ticker"], selections["analysis_date"])
+                msg_type, content = classify_message_type(message)
+                if content and content.strip():
+                    message_buffer.add_message(msg_type, content)
 
-        # Stream the analysis. On resume, feed None so LangGraph continues the
-        # interrupted run instead of re-appending the initial state (#1249); the
-        # try/finally tears the checkpointer down even if the stream raises.
-        trace = []
-        try:
-            for messages, chunk in graph.stream_run(graph.checkpoint_input(init_agent_state), **args):
-                for message in messages:
-                    msg_id = getattr(message, "id", None)
-                    if msg_id is not None:
-                        if msg_id in message_buffer._processed_message_ids:
-                            continue
-                        message_buffer._processed_message_ids.add(msg_id)
+                if hasattr(message, "tool_calls") and message.tool_calls:
+                    for tool_call in message.tool_calls:
+                        if isinstance(tool_call, dict):
+                            message_buffer.add_tool_call(tool_call["name"], tool_call["args"])
+                        else:
+                            message_buffer.add_tool_call(tool_call.name, tool_call.args)
 
-                    msg_type, content = classify_message_type(message)
-                    if content and content.strip():
-                        message_buffer.add_message(msg_type, content)
-
-                    if hasattr(message, "tool_calls") and message.tool_calls:
-                        for tool_call in message.tool_calls:
-                            if isinstance(tool_call, dict):
-                                message_buffer.add_tool_call(tool_call["name"], tool_call["args"])
-                            else:
-                                message_buffer.add_tool_call(tool_call.name, tool_call.args)
-
-                if chunk is None:   # a step inside an analyst's graph: messages only
-                    render_progress(layout, stats_handler=stats_handler, start_time=start_time)
-                    continue
-
-                update_analyst_statuses(
-                    message_buffer,
-                    chunk,
-                    wall_time_tracker=analyst_wall_time_tracker,
-                )
-
-                # Research Team - Handle Investment Debate State
-                if chunk.get("investment_debate_state"):
-                    debate_state = chunk["investment_debate_state"]
-                    bull_hist = debate_state.get("bull_history", "").strip()
-                    bear_hist = debate_state.get("bear_history", "").strip()
-                    judge = (chunk.get("investment_plan") or "").strip()
-
-                    # Only update status when there's actual content
-                    if bull_hist or bear_hist:
-                        update_research_team_status("in_progress")
-                    if bull_hist:
-                        message_buffer.update_report_section(
-                            "investment_plan", f"### Bull Researcher Analysis\n{bull_hist}"
-                        )
-                    if bear_hist:
-                        message_buffer.update_report_section(
-                            "investment_plan", f"### Bear Researcher Analysis\n{bear_hist}"
-                        )
-                    if judge:
-                        message_buffer.update_report_section(
-                            "investment_plan", f"### Research Manager Decision\n{judge}"
-                        )
-                        update_research_team_status("completed")
-                        message_buffer.update_agent_status("Trader", "in_progress")
-
-                # Trading Team
-                if chunk.get("trader_investment_plan"):
-                    message_buffer.update_report_section(
-                        "trader_investment_plan", chunk["trader_investment_plan"]
-                    )
-                    if message_buffer.agent_status.get("Trader") != "completed":
-                        message_buffer.update_agent_status("Trader", "completed")
-                        message_buffer.update_agent_status("Aggressive Analyst", "in_progress")
-
-                # Risk Management Team - Handle Risk Debate State
-                if chunk.get("risk_debate_state"):
-                    risk_state = chunk["risk_debate_state"]
-                    agg_hist = risk_state.get("aggressive_history", "").strip()
-                    con_hist = risk_state.get("conservative_history", "").strip()
-                    neu_hist = risk_state.get("neutral_history", "").strip()
-                    judge = (chunk.get("final_trade_decision") or "").strip()
-
-                    if agg_hist:
-                        if message_buffer.agent_status.get("Aggressive Analyst") != "completed":
-                            message_buffer.update_agent_status("Aggressive Analyst", "in_progress")
-                        message_buffer.update_report_section(
-                            "final_trade_decision", f"### Aggressive Analyst Analysis\n{agg_hist}"
-                        )
-                    if con_hist:
-                        if message_buffer.agent_status.get("Conservative Analyst") != "completed":
-                            message_buffer.update_agent_status("Conservative Analyst", "in_progress")
-                        message_buffer.update_report_section(
-                            "final_trade_decision", f"### Conservative Analyst Analysis\n{con_hist}"
-                        )
-                    if neu_hist:
-                        if message_buffer.agent_status.get("Neutral Analyst") != "completed":
-                            message_buffer.update_agent_status("Neutral Analyst", "in_progress")
-                        message_buffer.update_report_section(
-                            "final_trade_decision", f"### Neutral Analyst Analysis\n{neu_hist}"
-                        )
-                    if judge and message_buffer.agent_status.get("Portfolio Manager") != "completed":
-                        message_buffer.update_agent_status("Portfolio Manager", "in_progress")
-                        message_buffer.update_report_section(
-                            "final_trade_decision", f"### Portfolio Manager Decision\n{judge}"
-                        )
-                        message_buffer.update_agent_status("Aggressive Analyst", "completed")
-                        message_buffer.update_agent_status("Conservative Analyst", "completed")
-                        message_buffer.update_agent_status("Neutral Analyst", "completed")
-                        message_buffer.update_agent_status("Portfolio Manager", "completed")
-
+            if chunk is None:   # a step inside an analyst's graph: messages only
                 render_progress(layout, stats_handler=stats_handler, start_time=start_time)
+                return
 
-                trace.append(chunk)
-
-            # Streamed chunks are per-node deltas, not full state. Merge them
-            # so every report field populated across the run is present.
-            final_state = {}
-            for chunk in trace:
-                final_state.update(chunk)
-
-            # Clean run: log the decision, then drop this run's checkpoint so a
-            # later run starts fresh. A mid-stream failure skips both, keeping
-            # the checkpoint for resume.
-            graph.record_decision(selections["ticker"], selections["analysis_date"], final_state)
-            graph.clear_checkpoint_on_success(
-                selections["ticker"], selections["analysis_date"], selections["asset_type"], portfolio
+            update_analyst_statuses(
+                message_buffer,
+                chunk,
+                wall_time_tracker=analyst_wall_time_tracker,
             )
-        finally:
-            # Always restore the plain uncheckpointed graph, even on failure.
-            graph.end_checkpoint()
+
+            # Research Team - Handle Investment Debate State
+            if chunk.get("investment_debate_state"):
+                debate_state = chunk["investment_debate_state"]
+                bull_hist = debate_state.get("bull_history", "").strip()
+                bear_hist = debate_state.get("bear_history", "").strip()
+                judge = (chunk.get("investment_plan") or "").strip()
+
+                # Only update status when there's actual content
+                if bull_hist or bear_hist:
+                    update_research_team_status("in_progress")
+                if bull_hist:
+                    message_buffer.update_report_section(
+                        "investment_plan", f"### Bull Researcher Analysis\n{bull_hist}"
+                    )
+                if bear_hist:
+                    message_buffer.update_report_section(
+                        "investment_plan", f"### Bear Researcher Analysis\n{bear_hist}"
+                    )
+                if judge:
+                    message_buffer.update_report_section(
+                        "investment_plan", f"### Research Manager Decision\n{judge}"
+                    )
+                    update_research_team_status("completed")
+                    message_buffer.update_agent_status("Trader", "in_progress")
+
+            # Trading Team
+            if chunk.get("trader_investment_plan"):
+                message_buffer.update_report_section(
+                    "trader_investment_plan", chunk["trader_investment_plan"]
+                )
+                if message_buffer.agent_status.get("Trader") != "completed":
+                    message_buffer.update_agent_status("Trader", "completed")
+                    message_buffer.update_agent_status("Aggressive Analyst", "in_progress")
+
+            # Risk Management Team - Handle Risk Debate State
+            if chunk.get("risk_debate_state"):
+                risk_state = chunk["risk_debate_state"]
+                agg_hist = risk_state.get("aggressive_history", "").strip()
+                con_hist = risk_state.get("conservative_history", "").strip()
+                neu_hist = risk_state.get("neutral_history", "").strip()
+                judge = (chunk.get("final_trade_decision") or "").strip()
+
+                if agg_hist:
+                    if message_buffer.agent_status.get("Aggressive Analyst") != "completed":
+                        message_buffer.update_agent_status("Aggressive Analyst", "in_progress")
+                    message_buffer.update_report_section(
+                        "final_trade_decision", f"### Aggressive Analyst Analysis\n{agg_hist}"
+                    )
+                if con_hist:
+                    if message_buffer.agent_status.get("Conservative Analyst") != "completed":
+                        message_buffer.update_agent_status("Conservative Analyst", "in_progress")
+                    message_buffer.update_report_section(
+                        "final_trade_decision", f"### Conservative Analyst Analysis\n{con_hist}"
+                    )
+                if neu_hist:
+                    if message_buffer.agent_status.get("Neutral Analyst") != "completed":
+                        message_buffer.update_agent_status("Neutral Analyst", "in_progress")
+                    message_buffer.update_report_section(
+                        "final_trade_decision", f"### Neutral Analyst Analysis\n{neu_hist}"
+                    )
+                if judge and message_buffer.agent_status.get("Portfolio Manager") != "completed":
+                    message_buffer.update_agent_status("Portfolio Manager", "in_progress")
+                    message_buffer.update_report_section(
+                        "final_trade_decision", f"### Portfolio Manager Decision\n{judge}"
+                    )
+                    message_buffer.update_agent_status("Aggressive Analyst", "completed")
+                    message_buffer.update_agent_status("Conservative Analyst", "completed")
+                    message_buffer.update_agent_status("Neutral Analyst", "completed")
+                    message_buffer.update_agent_status("Portfolio Manager", "completed")
+
+            render_progress(layout, stats_handler=stats_handler, start_time=start_time)
+
+        # E3's summary is saved after the report prompts below, so its wall time
+        # spans the whole CLI interaction, as it did in Phase 2.
+        result = service.run_analysis(
+            request, on_event=on_event, stats_handler=stats_handler,
+            graph_factory=TradingAgentsGraph, wait=True, defer_e3_save=True,
+        )
+        final_state, graph = result.final_state, result.graph
 
         for agent in message_buffer.agent_status:
             message_buffer.update_agent_status(agent, "completed")
@@ -390,21 +357,10 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
 
         render_progress(layout, stats_handler=stats_handler, start_time=start_time)
 
-    # Keep the run's token and call totals; the live footer is gone once the view closes.
-    usage = {
-        **stats_handler.get_stats(),
-        "llm_provider": config.get("llm_provider"),
-        "quick_think_llm": config.get("quick_think_llm"),
-        "deep_think_llm": config.get("deep_think_llm"),
-        "elapsed_seconds": round(time.time() - start_time, 1),
-    }
-    usage["tokens_total"] = usage["tokens_in"] + usage["tokens_out"]
-    # E2: this run's cache hits and misses (absent when the cache is off).
-    from tradingagents import e2_cache
-    if e2_cache.is_enabled():
-        usage["e2_cache"] = e2_cache.stats_snapshot()
-    usage_file = results_dir / "token_usage.json"
-    usage_file.write_text(json.dumps(usage, indent=2), encoding="utf-8")
+    # The run's token and call totals, as the service saved them; the live footer
+    # is gone once the view closes.
+    usage = result.usage
+    usage_file = result.usage_path
 
     # Post-analysis prompts (outside Live context for clean interaction)
     console.print("\n[bold cyan]Analysis Complete![/bold cyan]\n")
@@ -428,10 +384,12 @@ def run_analysis(checkpoint: bool | None = None, portfolio=None, flags=None):
     _offer_reports(final_state, graph, selections["ticker"],
                    save=flags.get("save"), show=flags.get("show"), html=flags.get("html"))
 
-    # E3: record successful completion and portfolio decision
-    e3.mark_completed(
-        decision=final_state.get("final_trade_decision")
-    )
+    # E3: the whole interaction is done; save the summary (a no-op when tracing is off).
+    # If the prompts above raise, the exit hook saves it instead, as in Phase 2.
+    if result.e3 is not None:
+        result.e3.save()
+        # The run record was written before this save; link the summary so get_run_metrics can show its cost.
+        service.attach_e3_summary(request, result.run_id, result.e3.saved_path)
 
 
 def _yes(question: str) -> bool:

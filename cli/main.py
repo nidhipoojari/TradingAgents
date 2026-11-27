@@ -194,5 +194,13 @@ def logout(plan: Annotated[Plan, typer.Argument(help="The plan to sign out of")]
         console.print("Not signed in to ChatGPT.")
 
 
+@app.command()
+def doctor():
+    """Check the setup offline (Python, venv, packages, keys, E3, models) and say how to fix problems."""
+    from tradingagents.doctor import main as run_doctor
+
+    raise typer.Exit(run_doctor())
+
+
 if __name__ == "__main__":
     app()

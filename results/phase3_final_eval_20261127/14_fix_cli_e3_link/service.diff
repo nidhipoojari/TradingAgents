@@ -1,0 +1,26 @@
+910a911,935
+> def attach_e3_summary(request: AnalysisRequest, run_id: str, e3_summary_path) -> bool:
+>     """Link an E3 summary saved after the run's record (the CLI's ``defer_e3_save``) into that record, with its
+>     cost. Without it a CLI run's record names no E3 summary, so get_run_metrics reports its cost as unavailable.
+>     Never raises; False when there is nothing to attach or the record could not be updated."""
+>     from tradingagents import run_store
+> 
+>     if e3_summary_path is None:
+>         return False
+>     try:
+>         config = (dict(request.config) if request.config is not None else config_for_source(request.source))
+>         record = run_store.load(config["results_dir"], run_id)
+>         if record is None:
+>             return False
+>         record["e3_summary_path"] = str(Path(e3_summary_path).absolute())
+>         usage = dict(record.get("usage") or {})
+>         if "e3_cost" not in usage:
+>             with contextlib.suppress(OSError, ValueError):
+>                 usage["e3_cost"] = e3_cost(json.loads(Path(e3_summary_path).read_text(encoding="utf-8")))
+>         record["usage"] = usage
+>         return run_store.save(config["results_dir"], record) is not None
+>     except Exception:  # noqa: BLE001
+>         logger.warning("could not attach the E3 summary to the run record for %s", run_id, exc_info=True)
+>         return False
+> 
+> 

@@ -1,0 +1,40 @@
+{"pid": 277478, "mono": 137312.881, "event": "adopted", "elapsed": 1.653, "handoff": 1.6529292190098204}
+{"pid": 277478, "mono": 137312.883, "event": "run_analysis", "elapsed": 1.654, "cancel_set": false}
+{"pid": 277478, "mono": 137312.884, "event": "sdk_retry_observer_ready", "seconds": 0.001}
+{"pid": 277478, "mono": 137312.884, "event": "_run_locked", "elapsed": 1.656}
+{"pid": 277478, "mono": 137312.885, "event": "_validate_trade_date", "seconds": 0.0}
+{"pid": 277478, "mono": 137313.277, "event": "describe_for", "seconds": 0.393}
+{"pid": 277478, "mono": 137313.28, "event": "_adaptive_routing", "seconds": 0.003}
+{"pid": 277478, "mono": 137313.28, "event": "first_cancel_check", "elapsed": 2.052, "cancel_set": false}
+{"pid": 277502, "mono": 137323.712, "event": "adopted", "elapsed": 5.332, "handoff": 5.331739010987803}
+{"pid": 277502, "mono": 137323.715, "event": "run_analysis", "elapsed": 5.334, "cancel_set": false}
+{"pid": 277502, "mono": 137323.716, "event": "sdk_retry_observer_ready", "seconds": 0.001}
+{"pid": 277502, "mono": 137323.716, "event": "_run_locked", "elapsed": 5.335}
+{"pid": 277502, "mono": 137323.716, "event": "_validate_trade_date", "seconds": 0.0}
+{"pid": 277502, "mono": 137324.162, "event": "describe_for", "seconds": 0.446}
+{"pid": 277502, "mono": 137324.165, "event": "_adaptive_routing", "seconds": 0.003}
+{"pid": 277502, "mono": 137324.165, "event": "first_cancel_check", "elapsed": 5.784, "cancel_set": false}
+{"pid": 277548, "mono": 137331.466, "event": "adopted", "elapsed": 0.001, "handoff": 0.0007908460102044046}
+{"pid": 277548, "mono": 137331.469, "event": "run_analysis", "elapsed": 0.004, "cancel_set": false}
+{"pid": 277548, "mono": 137331.472, "event": "sdk_retry_observer_ready", "seconds": 0.002}
+{"pid": 277548, "mono": 137331.472, "event": "_run_locked", "elapsed": 0.007}
+{"pid": 277548, "mono": 137331.473, "event": "_validate_trade_date", "seconds": 0.001}
+{"pid": 277548, "mono": 137331.992, "event": "describe_for", "seconds": 0.519}
+{"pid": 277548, "mono": 137331.996, "event": "_adaptive_routing", "seconds": 0.004}
+{"pid": 277548, "mono": 137331.996, "event": "first_cancel_check", "elapsed": 0.53, "cancel_set": false}
+{"pid": 277582, "mono": 137342.955, "event": "adopted", "elapsed": 0.0, "handoff": 0.0003969469980802387}
+{"pid": 277582, "mono": 137342.956, "event": "run_analysis", "elapsed": 0.002, "cancel_set": false}
+{"pid": 277582, "mono": 137342.958, "event": "sdk_retry_observer_ready", "seconds": 0.001}
+{"pid": 277582, "mono": 137342.958, "event": "_run_locked", "elapsed": 0.004}
+{"pid": 277582, "mono": 137342.958, "event": "_validate_trade_date", "seconds": 0.0}
+{"pid": 277582, "mono": 137343.356, "event": "describe_for", "seconds": 0.398}
+{"pid": 277582, "mono": 137343.359, "event": "_adaptive_routing", "seconds": 0.002}
+{"pid": 277582, "mono": 137343.359, "event": "first_cancel_check", "elapsed": 0.405, "cancel_set": false}
+{"pid": 277501, "mono": 137351.576, "event": "adopted", "elapsed": 0.001, "handoff": 0.00037388698547147214}
+{"pid": 277501, "mono": 137351.584, "event": "run_analysis", "elapsed": 0.01, "cancel_set": false}
+{"pid": 277501, "mono": 137351.598, "event": "sdk_retry_observer_ready", "seconds": 0.014}
+{"pid": 277501, "mono": 137351.598, "event": "_run_locked", "elapsed": 0.024}
+{"pid": 277501, "mono": 137351.602, "event": "_validate_trade_date", "seconds": 0.004}
+{"pid": 277501, "mono": 137352.58, "event": "describe_for", "seconds": 0.977}
+{"pid": 277501, "mono": 137352.589, "event": "_adaptive_routing", "seconds": 0.009}
+{"pid": 277501, "mono": 137352.589, "event": "first_cancel_check", "elapsed": 1.015, "cancel_set": true}

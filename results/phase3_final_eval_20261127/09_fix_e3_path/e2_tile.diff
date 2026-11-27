@@ -1,0 +1,18 @@
+417a418,428
+> def e2_metric_text(usage: dict) -> str:
+>     """The E2 tile. The service records ``e2_cache`` only when E2 is on, so its absence means off, not "no data"
+>     (the live run 20261127-111852-5a8696f8 showed "n/a" with E2 off)."""
+>     e2 = usage.get("e2_cache")
+>     if not e2:
+>         return "off"
+>     if e2.get("hit_rate_pct") is None:
+>         return "n/a (no cacheable requests)"
+>     return f"{e2['hit_rate_pct']}% ({e2.get('hits', 0)}/{e2.get('hits', 0) + e2.get('misses', 0)})"
+> 
+> 
+424,426c435
+<     e2 = usage.get("e2_cache")
+<     cols[3].metric("E2 cache hit rate", f"{e2['hit_rate_pct']}%" if e2 and e2.get("hit_rate_pct") is not None
+<                    else "n/a")
+---
+>     cols[3].metric("E2 cache hit rate", e2_metric_text(usage))

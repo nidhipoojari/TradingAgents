@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Report tables</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; margin: 24px; max-width: 900px; }
+  h2 { font-size: 13pt; margin-top: 32px; }
+  table { border-collapse: collapse; margin: 8px 0 4px; }
+  th, td { border: 1px solid #000; padding: 4px 8px; text-align: left; vertical-align: top; }
+  th { background: #e7e6e6; }
+  td.n { text-align: right; }
+  p.note { font-size: 10pt; margin: 4px 0 0; }
+</style>
+</head>
+<body>
+
+<p>Select a table (click and drag from its first cell to its last), copy, and paste into Word or Google Docs.</p>
+
+<h2>4.2 Results: before vs after</h2>
+<table>
+  <tr><th>Metric</th><th>Before (Phase 1)</th><th>After (Phase 2)</th><th>Change</th><th>From</th></tr>
+  <tr><td>Latency per run (s)</td><td class="n">41.2</td><td class="n">28.7</td><td class="n">−30.5%</td><td>All</td></tr>
+  <tr><td>Cost per run (USD)</td><td class="n">0.0311*</td><td class="n">0.0208</td><td class="n">−33.0%</td><td>Shubhan</td></tr>
+  <tr><td>Tokens per run</td><td class="n">74,611</td><td class="n">30,272</td><td class="n">−59.4%</td><td>Shubhan</td></tr>
+  <tr><td>Run success, model failure</td><td>Run stops (no backup)</td><td>1 of 1 finished, 15/15 calls recovered</td><td>Fixed</td><td>Nidhi</td></tr>
+  <tr><td>Data-load time, warm (ms)</td><td class="n">3,690</td><td class="n">3</td><td class="n">−99.9%</td><td>Nidhi</td></tr>
+  <tr><td>Cache hit rate (%)</td><td class="n">0</td><td class="n">100 (14/14)</td><td class="n">+100 pts</td><td>Nidhi</td></tr>
+  <tr><td>Rating consistency</td><td>n/a</td><td>3 of 3 the same (Overweight)</td><td>Target met</td><td>Nidhi</td></tr>
+  <tr><td>Tracing overhead (ms/run)</td><td>n/a</td><td>No measurable overhead (10–13 ms, about 0.04%)</td><td>Target met (&lt; 5%)</td><td>Shubhan</td></tr>
+</table>
+<p class="note">* At the gemini-3.5-flash-lite prices used for Phase 2, the Phase 1 tokens (64,666 in / 9,945 out) cost $0.0443, a like-for-like reduction of 53%.</p>
+<p class="note">After values: median (latency) or mean (cost, tokens) of 5 Phase 2 runs on gemini-3.5-flash-lite, Nov 14: NVDA ×3, AAPL and MSFT (AAPL/MSFT from the reruns in eval/phase2-rerun). All 5 runs finished in 26.8–30.2 s.</p>
+
+<h2>Same-day comparison: Phase 1 vs Phase 2 code (NVDA ×3, gemini-3.5-flash-lite, same settings)</h2>
+<table>
+  <tr><th>Metric</th><th>Phase 1</th><th>Phase 2</th><th>Change</th></tr>
+  <tr><td>Wall time, median (s)</td><td class="n">46.4</td><td class="n">29.6</td><td class="n">−36%</td></tr>
+  <tr><td>Total tokens, mean</td><td class="n">135,240</td><td class="n">31,933</td><td class="n">−76%</td></tr>
+  <tr><td>Input tokens, mean</td><td class="n">129,462</td><td class="n">26,734</td><td class="n">−79%</td></tr>
+  <tr><td>Output tokens, mean</td><td class="n">5,778</td><td class="n">5,199</td><td class="n">−10%</td></tr>
+  <tr><td>Estimated cost, mean (USD)</td><td class="n">0.0533</td><td class="n">0.0210</td><td class="n">−61%</td></tr>
+  <tr><td>LLM calls per run</td><td class="n">18</td><td class="n">10</td><td class="n">−44%</td></tr>
+  <tr><td>Market Analyst tool rounds</td><td class="n">9</td><td class="n">1</td><td class="n">−89%</td></tr>
+  <tr><td>Rating consistency</td><td>2/3 (Hold, Overweight, Overweight)</td><td>3/3 (Overweight)</td><td>—</td></tr>
+</table>
+
+<h2>E3 per-agent breakdown and E1 tier (NVDA ×3, Phase 2)</h2>
+<table>
+  <tr><th>Agent</th><th>E1 tier</th><th>Latency (s)</th><th>Latency share</th><th>Output tokens</th><th>Cost share</th></tr>
+  <tr><td>Market Analyst</td><td>quick</td><td class="n">5.97</td><td class="n">24.9%</td><td class="n">1,591</td><td class="n">29.4%</td></tr>
+  <tr><td>Bear Researcher</td><td>quick</td><td class="n">3.82</td><td class="n">15.9%</td><td class="n">766</td><td class="n">11.5%</td></tr>
+  <tr><td>Bull Researcher</td><td>quick</td><td class="n">3.02</td><td class="n">12.6%</td><td class="n">679</td><td class="n">10.9%</td></tr>
+  <tr><td>Neutral Analyst</td><td>quick</td><td class="n">2.16</td><td class="n">9.0%</td><td class="n">476</td><td class="n">11.2%</td></tr>
+  <tr><td>Aggressive Analyst</td><td>quick</td><td class="n">2.07</td><td class="n">8.6%</td><td class="n">388</td><td class="n">7.9%</td></tr>
+  <tr><td>Conservative Analyst</td><td>quick</td><td class="n">2.04</td><td class="n">8.5%</td><td class="n">435</td><td class="n">9.5%</td></tr>
+  <tr><td>Research Manager</td><td>deep</td><td class="n">2.03</td><td class="n">8.5%</td><td class="n">344</td><td class="n">6.9%</td></tr>
+  <tr><td>Portfolio Manager</td><td>deep</td><td class="n">1.64</td><td class="n">6.9%</td><td class="n">352</td><td class="n">7.5%</td></tr>
+  <tr><td>Trader</td><td>quick</td><td class="n">1.22</td><td class="n">5.1%</td><td class="n">169</td><td class="n">5.3%</td></tr>
+  <tr><td><b>Quick tier (7 agents)</b></td><td></td><td></td><td class="n"><b>84.6%</b></td><td></td><td class="n"><b>85.7%</b></td></tr>
+  <tr><td><b>Deep tier (2 agents)</b></td><td></td><td></td><td class="n"><b>15.4%</b></td><td></td><td class="n"><b>14.4%</b></td></tr>
+</table>
+
+<h2>5.3 Code analysis: cloc (changed Python files since Phase 1)</h2>
+<table>
+  <tr><th>Language</th><th>Files</th><th>Blank</th><th>Comment</th><th>Code</th></tr>
+  <tr><td>Python</td><td class="n">34</td><td class="n">970</td><td class="n">882</td><td class="n">3,953</td></tr>
+</table>
+
+<table>
+  <tr><th>Lines changed</th><th>Files</th><th>Added</th><th>Removed</th></tr>
+  <tr><td>Production (tradingagents/, cli/)</td><td class="n">18</td><td class="n">1,015</td><td class="n">54</td></tr>
+  <tr><td>Tests</td><td class="n">11</td><td class="n">839</td><td class="n">3</td></tr>
+  <tr><td>Evaluation scripts</td><td class="n">5</td><td class="n">821</td><td class="n">0</td></tr>
+  <tr><td><b>Total</b></td><td class="n"><b>34</b></td><td class="n"><b>2,675</b></td><td class="n"><b>57</b></td></tr>
+</table>
+
+<h2>5.3 Code analysis: lizard</h2>
+<table>
+  <tr><th>Total NLOC</th><th>Avg NLOC</th><th>Avg CCN</th><th>Functions</th><th>Warnings (CCN &gt; 15)</th></tr>
+  <tr><td class="n">3,967</td><td class="n">13.8</td><td class="n">3.8</td><td class="n">241</td><td class="n">9</td></tr>
+</table>
+
+<table>
+  <tr><th>Production function</th><th>CCN</th><th>Phase 1</th><th>Status</th></tr>
+  <tr><td>cli/run.py: run_analysis</td><td class="n">52</td><td class="n">49</td><td>Existing (upstream), +3</td></tr>
+  <tr><td>e3_tracing.py: summary</td><td class="n">26</td><td class="n">—</td><td>New (E3)</td></tr>
+  <tr><td>router.py: _route_to_vendor_uncached</td><td class="n">25</td><td class="n">25</td><td>Renamed by E2, unchanged</td></tr>
+  <tr><td>compact_context.py: _compact_stock_data</td><td class="n">21</td><td class="n">—</td><td>New (E3)</td></tr>
+  <tr><td>factory.py: build_llm_kwargs</td><td class="n">20</td><td class="n">14</td><td>Existing, +6</td></tr>
+</table>
+<p class="note">The other 4 warnings are in evaluation scripts (phase2_eval.py, e3_agent_breakdown.py, tradingagents_benchmark_audit.py). These are standalone benchmarking tools; they are not imported by the application or included in the installed package.</p>
+
+</body>
+</html>

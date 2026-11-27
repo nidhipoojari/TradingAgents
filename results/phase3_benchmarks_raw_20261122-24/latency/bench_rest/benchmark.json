@@ -1,0 +1,121 @@
+{
+ "profiles": {
+  "10-call": {
+   "source": "results/phase3_smoke/20261122_225216/e3/NVDA_2026-10-23_20261122-225220-bf036521_e3.json",
+   "market_tool_rounds": 1,
+   "data_seconds_per_tool": 0.26,
+   "reference_wall_seconds": 25.805,
+   "llm_seconds": 24.12
+  },
+  "12-call": {
+   "source": "consistency_evaluation/nvda_live/run_1/e3/NVDA_2026-10-23_27d3d8aa_e3.json",
+   "market_tool_rounds": 3,
+   "data_seconds_per_tool": 4.443,
+   "reference_wall_seconds": 40.64,
+   "llm_seconds": 26.41
+  }
+ },
+ "scenarios": {
+  "12-call, cold worker, E2 cold (live-data delays)": {
+   "n": 3,
+   "median": 38.44,
+   "p95": 38.87,
+   "max": 38.87,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 12.03,
+   "runs": [
+    {
+     "seconds": 38.44,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 38.14,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 38.87,
+     "outcome": "completed",
+     "llm_calls": 12
+    }
+   ]
+  },
+  "12-call, primary 503 on its first 2 calls, backup covers them": {
+   "n": 3,
+   "median": 41.37,
+   "p95": 42.28,
+   "max": 42.28,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 14.96,
+   "runs": [
+    {
+     "seconds": 41.37,
+     "outcome": "completed",
+     "llm_calls": 14
+    },
+    {
+     "seconds": 41.34,
+     "outcome": "completed",
+     "llm_calls": 14
+    },
+    {
+     "seconds": 42.28,
+     "outcome": "completed",
+     "llm_calls": 14
+    }
+   ]
+  },
+  "hung primary (shorter: 30 s step deadline, 2 s grace)": {
+   "n": 2,
+   "median": 34.59,
+   "p95": 34.99,
+   "max": 34.99,
+   "outcomes": [
+    "deadline_exceeded (step)"
+   ],
+   "runs": [
+    {
+     "seconds": 34.99,
+     "outcome": "deadline_exceeded (step)",
+     "llm_calls": null
+    },
+    {
+     "seconds": 34.2,
+     "outcome": "deadline_exceeded (step)",
+     "llm_calls": null
+    }
+   ]
+  },
+  "hung primary (defaults: 60 s step deadline)": {
+   "n": 3,
+   "median": 67.18,
+   "p95": 67.19,
+   "max": 67.19,
+   "outcomes": [
+    "deadline_exceeded (step)"
+   ],
+   "runs": [
+    {
+     "seconds": 67.19,
+     "outcome": "deadline_exceeded (step)",
+     "llm_calls": null
+    },
+    {
+     "seconds": 67.18,
+     "outcome": "deadline_exceeded (step)",
+     "llm_calls": null
+    },
+    {
+     "seconds": 67.18,
+     "outcome": "deadline_exceeded (step)",
+     "llm_calls": null
+    }
+   ]
+  }
+ }
+}

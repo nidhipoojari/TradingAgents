@@ -1,0 +1,16 @@
+368a369,370
+>     from typing import Annotated
+> 
+371a374
+>     from pydantic import Field
+382c385,387
+<         include_reports: bool = False,
+---
+>         # Strict: a JSON boolean only. In lax mode "yes", "on", "1" or 1 become True and start a full (paid)
+>         # analysis from a malformed argument; the same reason RecentLimit below is strict.
+>         include_reports: Annotated[bool, Field(strict=True)] = False,
+486,489d490
+< 
+<     from typing import Annotated
+< 
+<     from pydantic import Field

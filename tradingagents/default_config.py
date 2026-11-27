@@ -15,7 +15,16 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_DEEP_FALLBACK_LLM":    "deep_fallback_llm",
     # E2: SQLite cache for past-dated data requests (true/false)
     "TRADINGAGENTS_E2_CACHE":             "e2_cache_enabled",
+    # E2 freshness (Phase 3): maximum age in days of a saved answer; refresh = fetch everything again
+    "TRADINGAGENTS_E2_MAX_AGE_DAYS":      "e2_cache_max_age_days",
+    "TRADINGAGENTS_E2_REFRESH":           "e2_cache_refresh",
     "TRADINGAGENTS_QUICK_FALLBACK_LLM":   "quick_fallback_llm",
+    # E1 (Phase 3): an optional backup on another provider (empty = the tier's own provider)
+    "TRADINGAGENTS_E1_ADAPTIVE":                "e1_adaptive_routing",
+    "TRADINGAGENTS_QUICK_FALLBACK_PROVIDER":    "quick_fallback_provider",
+    "TRADINGAGENTS_DEEP_FALLBACK_PROVIDER":     "deep_fallback_provider",
+    "TRADINGAGENTS_QUICK_FALLBACK_BACKEND_URL": "quick_fallback_backend_url",
+    "TRADINGAGENTS_DEEP_FALLBACK_BACKEND_URL":  "deep_fallback_backend_url",
     "TRADINGAGENTS_DEEP_THINK_PROVIDER":       "deep_think_provider",
     "TRADINGAGENTS_QUICK_THINK_PROVIDER":      "quick_think_provider",
     "TRADINGAGENTS_DEEP_THINK_BACKEND_URL":    "deep_think_backend_url",
@@ -110,8 +119,19 @@ def build_default_config() -> dict:
         # E1: backup models, used when the main model fails (None = no backup)
         "deep_fallback_llm": None,
         "quick_fallback_llm": None,
+        # E1 (Phase 3): the backup's provider and endpoint, when it is not the tier's own provider.
+        # Never chosen automatically: None keeps Phase 2 behaviour (backup on the same provider).
+        "quick_fallback_provider": None,
+        "deep_fallback_provider": None,
+        # E1 (Phase 3): adaptive routing from recent E3 records (e1_adaptive.py). Off = the fixed table.
+        "e1_adaptive_routing": False,
+        "quick_fallback_backend_url": None,
+        "deep_fallback_backend_url": None,
         # E2: reuse past-dated data from <data_cache_dir>/e2_cache.sqlite (off = old behavior)
         "e2_cache_enabled": False,
+        # E2 freshness (Phase 3): None = saved answers never expire (Phase 2); refresh = re-fetch and replace
+        "e2_cache_max_age_days": None,
+        "e2_cache_refresh": False,
         # When None, each provider's client falls back to its own default endpoint
         # (api.openai.com for OpenAI, generativelanguage.googleapis.com for Gemini, ...).
         # The CLI overrides this per provider when the user picks one. Keeping a

@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "tradingagents": {
+      "type": "stdio",
+      "command": "/home/sbhat/Projects/TradingAgents-cli-startup/.venv/bin/tradingagents-mcp",
+      "args": [],
+      "env": {
+        "TRADINGAGENTS_RESULTS_DIR": "/home/sbhat/.tradingagents/logs",
+        "TRADINGAGENTS_MCP_MAX_LLM_CALLS": "-1",
+        "GOOGLE_API_KEY": "",
+        "GEMINI_API_KEY": "",
+        "ALPACA_API_KEY": "",
+        "ALPACA_SECRET_KEY": "",
+        "E3_TRACE_ENABLED": "0"
+      }
+    }
+  }
+}

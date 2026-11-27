@@ -1,0 +1,427 @@
+{
+  "schema": "tradingagents-e3-summary-v1",
+  "created_at_utc": "2026-11-27T16:19:24.052525+00:00",
+  "ticker": "NVDA",
+  "analysis_date": "2026-10-23",
+  "status": "success",
+  "decision": "**Rating**: Overweight\n\n**Executive Summary**: Initiate a scaled entry into NVDA, allocating 2.5% of the portfolio to capture the current pullback while maintaining the ability to add if the stock tests lower support. Implement a disciplined, wide-stop approach that accounts for the current 6.06 ATR to avoid being shaken out by near-term technical volatility. Target accumulation near the 200-day SMA of 203.36.\n\n**Investment Thesis**: The investment thesis is anchored in the robust fundamental performance of NVIDIA Corporation, which delivered $96.22 billion in revenue and $59.69 billion in net income for the July 2026 quarter. While the technical momentum, highlighted by a negative MACD histogram (-2.16) and a downward price trend, warrants caution, the consensus of the debate suggests the pullback to the 200-day SMA (203.36) and the Bollinger Lower Band (208.06) presents a high-quality opportunity for long-term investors. By adopting a moderate, scaled entry of 2.5% rather than a full 5% allocation, the strategy mitigates the 'cluster-risk' cited by the conservative analyst while avoiding the paralysis that would result from waiting for perfect MACD reversal signals. The bullish case will be invalidated if the stock decisively breaks and holds below the 200-day SMA, indicating a fundamental shift in market sentiment beyond mere cyclical correction.\n\n**Price Target**: not provided\n\n**Time Horizon**: 6-12 months",
+  "run_error": null,
+  "wall_time_seconds": 29.678,
+  "observed_llm_calls": 16,
+  "observed_llm_errors": 1,
+  "timing": {
+    "llm_busy_seconds": 26.005,
+    "summed_llm_latency_seconds": 35.279,
+    "before_first_llm_seconds": 3.16,
+    "between_llm_calls_seconds": 0.499,
+    "after_last_llm_seconds": 0.015
+  },
+  "per_call": [
+    {
+      "agent": "Fundamentals Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 3161.14,
+      "latency_ms": 1225.64,
+      "input_tokens": 1032,
+      "output_tokens": 147,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "News Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 3173.44,
+      "latency_ms": 1289.91,
+      "input_tokens": 1517,
+      "output_tokens": 206,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 3159.58,
+      "latency_ms": 1330.82,
+      "input_tokens": 1853,
+      "output_tokens": 140,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Sentiment Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 3811.93,
+      "latency_ms": 1644.3,
+      "input_tokens": 1211,
+      "output_tokens": 401,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Market Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 5890.05,
+      "latency_ms": 3859.42,
+      "input_tokens": 4730,
+      "output_tokens": 1343,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "News Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 6671.2,
+      "latency_ms": 3176.94,
+      "input_tokens": 2171,
+      "output_tokens": 692,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Fundamentals Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 6845.79,
+      "latency_ms": 4347.6,
+      "input_tokens": 8833,
+      "output_tokens": 1496,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Bull Researcher",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 11200.26,
+      "latency_ms": 2239.07,
+      "input_tokens": 4284,
+      "output_tokens": 508,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Bear Researcher",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 13444.3,
+      "latency_ms": 2956.25,
+      "input_tokens": 4799,
+      "output_tokens": 584,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Research Manager",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 16405.18,
+      "latency_ms": 1386.96,
+      "input_tokens": 1525,
+      "output_tokens": 268,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Trader",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 17801.15,
+      "latency_ms": 1040.22,
+      "input_tokens": 2047,
+      "output_tokens": 148,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Aggressive Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 18848.07,
+      "latency_ms": 1804.01,
+      "input_tokens": 4561,
+      "output_tokens": 400,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Conservative Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 20657.61,
+      "latency_ms": 1886.19,
+      "input_tokens": 5332,
+      "output_tokens": 393,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Neutral Analyst",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 22549.42,
+      "latency_ms": 3619.9,
+      "input_tokens": 6082,
+      "output_tokens": 617,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Portfolio Manager",
+      "model": "gemini-3.5-flash-lite",
+      "start_offset_ms": 26174.67,
+      "latency_ms": 502.6,
+      "input_tokens": null,
+      "output_tokens": null,
+      "had_error": true,
+      "usage_reported": false,
+      "error_code": 429,
+      "cached_input_tokens": null,
+      "reasoning_tokens": null
+    },
+    {
+      "agent": "Portfolio Manager",
+      "model": "gemini-3.1-flash-lite",
+      "start_offset_ms": 26693.71,
+      "latency_ms": 2969.51,
+      "input_tokens": 2283,
+      "output_tokens": 349,
+      "had_error": false,
+      "usage_reported": true,
+      "error_code": null,
+      "cached_input_tokens": 0,
+      "reasoning_tokens": null
+    }
+  ],
+  "per_agent": {
+    "Aggressive Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1804.01,
+      "input_tokens_reported": 4561,
+      "output_tokens_reported": 400,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Bear Researcher": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2956.25,
+      "input_tokens_reported": 4799,
+      "output_tokens_reported": 584,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Bull Researcher": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 2239.07,
+      "input_tokens_reported": 4284,
+      "output_tokens_reported": 508,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Conservative Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1886.19,
+      "input_tokens_reported": 5332,
+      "output_tokens_reported": 393,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Fundamentals Analyst": {
+      "llm_calls": 2,
+      "errors": 0,
+      "observed_llm_latency_ms": 5573.24,
+      "input_tokens_reported": 9865,
+      "output_tokens_reported": 1643,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Market Analyst": {
+      "llm_calls": 2,
+      "errors": 0,
+      "observed_llm_latency_ms": 5190.24,
+      "input_tokens_reported": 6583,
+      "output_tokens_reported": 1483,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Neutral Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 3619.9,
+      "input_tokens_reported": 6082,
+      "output_tokens_reported": 617,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "News Analyst": {
+      "llm_calls": 2,
+      "errors": 0,
+      "observed_llm_latency_ms": 4466.85,
+      "input_tokens_reported": 3688,
+      "output_tokens_reported": 898,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Portfolio Manager": {
+      "llm_calls": 2,
+      "errors": 1,
+      "observed_llm_latency_ms": 3472.11,
+      "input_tokens_reported": 2283,
+      "output_tokens_reported": 349,
+      "missing_usage_events": 1,
+      "models": [
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Research Manager": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1386.96,
+      "input_tokens_reported": 1525,
+      "output_tokens_reported": 268,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Sentiment Analyst": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1644.3,
+      "input_tokens_reported": 1211,
+      "output_tokens_reported": 401,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    },
+    "Trader": {
+      "llm_calls": 1,
+      "errors": 0,
+      "observed_llm_latency_ms": 1040.22,
+      "input_tokens_reported": 2047,
+      "output_tokens_reported": 148,
+      "missing_usage_events": 0,
+      "models": [
+        "gemini-3.5-flash-lite"
+      ]
+    }
+  },
+  "estimated_cost_usd": null,
+  "known_usage_cost_usd": 0.034445,
+  "cost_complete": false,
+  "priced_llm_calls": 15,
+  "unpriced_llm_calls": 1,
+  "cost_note": "Not calculated: supply pricing for every model and ensure every LLM callback includes token usage.",
+  "failed_calls_without_usage": 1,
+  "failed_calls_with_usage": 0,
+  "estimated_cost_usd_successful_calls": 0.034445,
+  "tokens_reported": {
+    "input": 52260,
+    "output": 7692,
+    "cached_input": 0,
+    "reasoning": 0,
+    "calls_without_usage": 1
+  },
+  "cost_basis": {
+    "estimated_cost_usd": "estimate: provider-reported tokens x the prices in E3_PRICING_JSON; not a charge",
+    "cached_input": "priced at cached_input_per_million_usd where the pricing file gives it, otherwise at the full input price (conservative)",
+    "actual_billing_usd": null,
+    "actual_billing_status": "not verified: providers do not report a charge per request; compare with your billing export (scripts/reconcile_billing.py)"
+  },
+  "limitations": [
+    "Unattributed events may appear when the agent/node is absent from callback metadata.",
+    "Tokens are counted only when reported by the underlying provider.",
+    "Callback LLM latency is not the same as end-to-end run latency.",
+    "Langfuse tracing records observations; it does not itself change E1 model routing or trigger fallback."
+  ],
+  "pre_analysis_seconds": 0.001,
+  "analysis_seconds": 29.675,
+  "post_analysis_seconds": 0.002,
+  "timing_boundaries": {
+    "wall_time_seconds": "E3 session start (after the run's setup questions, before the graph is built) to the summary save: after the report prompts for the CLI, as in Phase 2; at the end of the analysis for the dashboard and MCP, which have no prompts",
+    "pre_analysis_seconds": "E3 session start to the start of graph construction",
+    "analysis_seconds": "graph construction start to the decision recorded and the checkpoint closed",
+    "post_analysis_seconds": "analysis end to the summary save (CLI: report prompts and saving)"
+  },
+  "run_id": "20261127-111852-5a8696f8",
+  "source": "dashboard",
+  "run_budget": {
+    "max_llm_calls": 24,
+    "max_cost_usd": 0.04,
+    "llm_calls_started": 16,
+    "llm_calls_refused": 0,
+    "llm_calls_in_flight": 0,
+    "reported_usage_cost_usd": 0.034445,
+    "unpriced_usage_estimate_usd": 0.0,
+    "unreported_usage_estimate_usd": 0.000995,
+    "budget_cost_usd": 0.03544,
+    "reserved_in_flight_usd": 0,
+    "conservative_total_usd": 0.03544,
+    "failed_calls": 1,
+    "failed_calls_with_usage": 0,
+    "sdk_retries_observed": 0,
+    "sdk_retries_observability": "observed",
+    "calls_without_usage": 0,
+    "unpriced_calls": 0,
+    "exhausted": false,
+    "reason": null,
+    "basis": "conservative budget accounting, not the provider's bill: reported tokens at the model's price; unpriced models at the highest known price; calls that reported no usage at a reservation (prompt/3 input + 2000 output tokens) or, if they failed, their input estimate. The provider may bill differently (failed or retried requests, its own token counts and prices)."
+  },
+  "sdk_retries_observed": 0,
+  "langfuse_flush": "ok"
+}

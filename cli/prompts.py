@@ -81,12 +81,40 @@ def parse_ticker(value: str) -> str:
     return normalize_ticker_symbol(value)
 
 
+def _date_suggestion(value: str) -> str:
+    """For a malformed date, the YYYY-MM-DD it most likely meant, or why it is not a date at all."""
+    import re
+
+    text = (value or "").strip()
+    m = re.fullmatch(r"(\d{4})[/.](\d{1,2})[/.](\d{1,2})", text)
+    if m:
+        candidate = f"{m[1]}-{int(m[2]):02d}-{int(m[3]):02d}"
+    else:
+        m = re.fullmatch(r"(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})", text)
+        if m and int(m[1]) <= 12 < int(m[2]):
+            candidate = f"{m[3]}-{int(m[1]):02d}-{int(m[2]):02d}"          # month-day-year
+        elif m and int(m[2]) <= 12 < int(m[1]):
+            candidate = f"{m[3]}-{int(m[2]):02d}-{int(m[1]):02d}"          # day-month-year
+        elif m:
+            return " (day and month are ambiguous in that order; write it as YYYY-MM-DD)"
+        else:
+            m = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", text)
+            candidate = f"{m[1]}-{int(m[2]):02d}-{int(m[3]):02d}" if m else None
+    if candidate is None:
+        return ""
+    try:
+        datetime.date.fromisoformat(candidate)
+    except ValueError:
+        return f" ({candidate} is not a calendar date)"
+    return "" if candidate == text else f" (did you mean {candidate}?)"
+
+
 def parse_analysis_date(value: str) -> str:
     """An analysis date as YYYY-MM-DD, today or earlier."""
     try:
         day = datetime.datetime.strptime(value.strip(), "%Y-%m-%d").date()
     except ValueError:
-        raise ValueError(f"not a date: {value!r}; use YYYY-MM-DD") from None
+        raise ValueError(f"not a date: {value!r}; use YYYY-MM-DD{_date_suggestion(value)}") from None
     if day > datetime.date.today():
         raise ValueError(f"{value} is in the future")
     return day.isoformat()

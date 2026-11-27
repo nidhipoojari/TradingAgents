@@ -1,0 +1,1 @@
+run 2: quota and cache fixed; vendor fault raised a raw ConnectionError, which real vendors never raise (yf_retry wraps it as VendorUnavailableError). Superseded by ../06_error_scenarios

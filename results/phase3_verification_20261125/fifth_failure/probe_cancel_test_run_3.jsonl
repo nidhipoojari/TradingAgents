@@ -1,0 +1,52 @@
+{"test": "test_a_backup_that_would_start_after_its_step_deadline_is_refused", "t": 135810.969, "fn": "children_at_start", "children": []}
+{"test": "test_the_analysis_deadline_stops_a_run_mid_way_and_keeps_its_record", "t": 135811.625, "fn": "children_at_start", "children": []}
+{"test": "test_a_completed_run_reports_its_time_against_the_target", "t": 135812.834, "fn": "children_at_start", "children": []}
+{"test": "test_a_run_whose_deadline_passed_before_it_started_never_runs", "t": 135813.029, "fn": "children_at_start", "children": []}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 135813.033, "fn": "children_at_start", "children": []}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 135814.327, "fn": "take", "seconds": 1.291}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 135818.787, "fn": "overdue_detected", "agent": "Market Analyst", "waited": 4.027}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 135819.807, "fn": "stop", "seconds": 0.02}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 135819.811, "fn": "_write_terminated_e3", "seconds": 0.002}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 135819.814, "fn": "_write_partial_usage", "seconds": 0.003}
+{"test": "test_a_hung_call_is_ended_by_the_parent_at_the_step_deadline", "t": 135819.814, "fn": "run_in_worker", "seconds": 6.779}
+{"test": "test_a_slow_worker_start_does_not_use_up_the_step_deadline", "t": 135819.818, "fn": "children_at_start", "children": [[270192, true]]}
+{"test": "test_a_slow_worker_start_does_not_use_up_the_step_deadline", "t": 135825.123, "fn": "take", "seconds": 5.303}
+{"test": "test_a_slow_worker_start_does_not_use_up_the_step_deadline", "t": 135829.531, "fn": "overdue_detected", "agent": "Market Analyst", "waited": 4.009}
+{"test": "test_a_slow_worker_start_does_not_use_up_the_step_deadline", "t": 135830.551, "fn": "stop", "seconds": 0.019}
+{"test": "test_a_slow_worker_start_does_not_use_up_the_step_deadline", "t": 135830.552, "fn": "_write_terminated_e3", "seconds": 0.001}
+{"test": "test_a_slow_worker_start_does_not_use_up_the_step_deadline", "t": 135830.554, "fn": "_write_partial_usage", "seconds": 0.001}
+{"test": "test_a_slow_worker_start_does_not_use_up_the_step_deadline", "t": 135830.554, "fn": "run_in_worker", "seconds": 10.734}
+{"test": "test_a_frozen_worker_is_stopped_by_the_deadline_before_the_watchdog", "t": 135830.557, "fn": "stop", "seconds": 0.0}
+{"test": "test_a_frozen_worker_is_stopped_by_the_deadline_before_the_watchdog", "t": 135830.558, "fn": "children_at_start", "children": [[270192, true]]}
+{"test": "test_a_frozen_worker_is_stopped_by_the_deadline_before_the_watchdog", "t": 135831.858, "fn": "take", "seconds": 0.0}
+{"test": "test_a_frozen_worker_is_stopped_by_the_deadline_before_the_watchdog", "t": 135841.903, "fn": "stop", "seconds": 5.03}
+{"test": "test_a_frozen_worker_is_stopped_by_the_deadline_before_the_watchdog", "t": 135841.908, "fn": "_write_terminated_e3", "seconds": 0.002}
+{"test": "test_a_frozen_worker_is_stopped_by_the_deadline_before_the_watchdog", "t": 135841.912, "fn": "_write_partial_usage", "seconds": 0.004}
+{"test": "test_a_frozen_worker_is_stopped_by_the_deadline_before_the_watchdog", "t": 135841.912, "fn": "run_in_worker", "seconds": 10.054}
+{"test": "test_the_deadline_reached_while_calls_run_stops_the_worker_cooperatively", "t": 135841.917, "fn": "children_at_start", "children": [[270192, true]]}
+{"test": "test_the_deadline_reached_while_calls_run_stops_the_worker_cooperatively", "t": 135843.153, "fn": "take", "seconds": 0.0}
+{"test": "test_the_deadline_reached_while_calls_run_stops_the_worker_cooperatively", "t": 135845.283, "fn": "run_in_worker", "seconds": 2.129}
+{"test": "test_the_deadline_reached_while_calls_run_stops_the_worker_cooperatively", "t": 135846.046, "fn": "_reap", "seconds": 0.765, "exitcode": 0}
+{"test": "test_a_deadline_that_passes_before_a_worker_is_ready_starts_nothing", "t": 135846.095, "fn": "children_at_start", "children": [[270272, true], [270322, true], [270192, true]]}
+{"test": "test_a_deadline_that_passes_before_a_worker_is_ready_starts_nothing", "t": 135846.101, "fn": "run_in_worker", "seconds": 0.006}
+{"test": "test_openai_and_anthropic_retries_are_bounded_and_counted[503-openai-OPENAI_API_KEY-gpt-4.1-mini-gpt-4.1-nano]", "t": 135846.11, "fn": "children_at_start", "children": [[270272, true], [270322, true], [270192, true]]}
+{"test": "test_openai_and_anthropic_retries_are_bounded_and_counted[503-anthropic-ANTHROPIC_API_KEY-claude-haiku-4-5-claude-sonnet-4-5]", "t": 135846.685, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_openai_and_anthropic_retries_are_bounded_and_counted[429-openai-OPENAI_API_KEY-gpt-4.1-mini-gpt-4.1-nano]", "t": 135848.242, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_openai_and_anthropic_retries_are_bounded_and_counted[429-anthropic-ANTHROPIC_API_KEY-claude-haiku-4-5-claude-sonnet-4-5]", "t": 135848.664, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_an_unobservable_provider_reports_retries_as_unavailable", "t": 135849.075, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_the_cli_keeps_its_raw_retry_setting", "t": 135849.077, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_the_call_limit_follows_the_analysts_and_depth", "t": 135849.127, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_raising_the_cost_ceiling_needs_approval_and_is_never_automatic", "t": 135849.129, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_a_full_four_analyst_run_completes_within_its_derived_limit", "t": 135849.133, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_a_full_run_with_every_primary_failing_is_a_budget_stop_not_a_failure", "t": 135849.476, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_the_page_refuses_a_raised_ceiling_without_approval", "t": 135849.799, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_a_cancel_before_the_deadline_stays_a_cancel", "t": 135851.678, "fn": "children_at_start", "children": [[270337, true], [270272, true], [270322, true], [270192, true]]}
+{"test": "test_a_cancel_before_the_deadline_stays_a_cancel", "t": 135851.681, "fn": "take", "seconds": 0.0}
+{"test": "test_a_cancel_before_the_deadline_stays_a_cancel", "t": 135852.849, "fn": "run_in_worker", "seconds": 1.168}
+{"test": "test_an_sdk_retry_that_recovers_is_a_success_not_a_failure", "t": 135852.862, "fn": "children_at_start", "children": [[270403, false], [270337, true], [270396, true], [270272, true], [270322, true], [270192, false]]}
+{"test": "test_an_sdk_retry_that_recovers_is_a_success_not_a_failure", "t": 135852.866, "fn": "stop", "seconds": 0.007}
+{"test": "test_an_sdk_retry_that_recovers_is_a_success_not_a_failure", "t": 135855.236, "fn": "_reap", "seconds": 2.387, "exitcode": 0}
+{"test": "test_an_sdk_retry_that_recovers_is_a_success_not_a_failure", "t": 135855.283, "fn": "stop", "seconds": 0.0}
+{"test": "test_an_sdk_retry_that_recovers_is_a_success_not_a_failure", "t": 135855.284, "fn": "stop", "seconds": 0.0}
+{"test": "test_an_sdk_retry_that_recovers_is_a_success_not_a_failure", "t": 135855.284, "fn": "stop", "seconds": 0.0}
+{"test": "test_an_sdk_retry_that_recovers_is_a_success_not_a_failure", "t": 135855.285, "fn": "stop", "seconds": 0.0}

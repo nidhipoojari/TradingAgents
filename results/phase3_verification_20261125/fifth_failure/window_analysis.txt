@@ -1,0 +1,36 @@
+timeline run: 2009 tests, 253.1 s; test_trade_rejection starts at 169.4 s (66.9%)
+failing run (2026-11-25 09:17:10-09:20:57, 227 s): clock step at ~202 s (~89%)
+
+test files started between 80% of the run and test_trade_rejection (202-169 s):
+
+test_sessions.py: starts at 163.4 s (64.6%), 16 tests
+
+test_social_lookahead.py: starts at 169.0 s (66.8%), 15 tests
+
+--- corrected window (2026-11-25 re-analysis) ---
+first test starts at 10.4 s after the plugin loaded (collection before it)
+clock step: 19.9 s after the failing command began; minus Ruff and collection: ~12-16 s into the tests.
+window shown: 5-35 s after the first test (wide margin; the timeline run was ~11% slower overall)
+
+     5.0-   5.5 s    10 tests  tests/test_chatgpt_auth.py
+     5.6-   5.8 s    19 tests  tests/test_chatgpt_provider.py
+     5.8-   5.8 s     5 tests  tests/test_checkpoint_lifecycle.py
+     5.8-   5.9 s     8 tests  tests/test_checkpoint_resume.py
+     5.9-  10.3 s    20 tests  tests/test_cli_commands.py
+    10.3-  10.3 s     9 tests  tests/test_cli_config_precedence.py
+    10.3-  10.4 s    21 tests  tests/test_cli_display.py
+    10.4-  10.4 s     6 tests  tests/test_cli_env_skip.py
+    10.4-  10.5 s    31 tests  tests/test_cli_headless.py
+    10.5-  10.5 s     7 tests  tests/test_cli_memory_log.py
+    10.5-  10.5 s     3 tests  tests/test_cli_no_console.py
+    10.8-  10.8 s    12 tests  tests/test_cli_prefs.py
+    10.8-  10.8 s    26 tests  tests/test_cli_symbol_handling.py
+    10.8-  10.9 s    37 tests  tests/test_cli_updates.py
+    10.9-  10.9 s    13 tests  tests/test_common_errors.py
+    10.9-  10.9 s     7 tests  tests/test_cost_accounting.py
+    10.9-  10.9 s     5 tests  tests/test_crypto_asset_mode.py
+    10.9-  12.8 s     4 tests  tests/test_dashboard_input_errors.py
+    13.1-  13.6 s    15 tests  tests/test_dashboard_logic.py
+    13.6-  13.6 s    10 tests  tests/test_dataflows_config.py
+    13.6-  13.6 s     2 tests  tests/test_date_boundaries.py
+    13.6-  23.6 s     6 tests  tests/test_deadlines_and_limits.py

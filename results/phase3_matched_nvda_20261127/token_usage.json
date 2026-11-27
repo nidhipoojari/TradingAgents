@@ -1,0 +1,19 @@
+{
+  "llm_calls": 10,
+  "tool_calls": 3,
+  "tokens_in": 27147,
+  "tokens_out": 5246,
+  "llm_provider": "google",
+  "quick_think_llm": "gemini-3.5-flash-lite",
+  "deep_think_llm": "gemini-3.5-flash-lite",
+  "elapsed_seconds": 24.1,
+  "tokens_total": 32393,
+  "e2_cache": {
+    "hits": 0,
+    "misses": 5,
+    "skipped": 0,
+    "hit_rate_pct": 0.0
+  },
+  "run_id": "20261127-130029-55186b8a",
+  "source": "cli"
+}

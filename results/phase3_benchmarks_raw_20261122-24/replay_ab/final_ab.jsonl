@@ -1,0 +1,8 @@
+{"label": "phase2", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1326, "min": 0.1026, "max": 0.2631, "p95": 0.2237, "llm_calls": [10]}
+{"label": "current", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1488, "min": 0.1122, "max": 0.3666, "p95": 0.2653, "llm_calls": [10]}
+{"label": "current", "mode": "service", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1593, "min": 0.1132, "max": 0.2669, "p95": 0.228, "llm_calls": [10]}
+{"label": "current", "mode": "worker", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.2101, "min": 0.1576, "max": 0.4165, "p95": 0.3599, "llm_calls": [10]}
+{"label": "phase2", "mode": "graph", "profile": "p2_01_NVDA", "e2": "cold", "e3": "on", "n": 5, "median": 21.9378, "min": 21.9203, "max": 21.9924, "p95": 21.9924, "llm_calls": [10]}
+{"label": "current", "mode": "graph", "profile": "p2_01_NVDA", "e2": "cold", "e3": "on", "n": 5, "median": 21.9305, "min": 21.9117, "max": 21.9746, "p95": 21.9746, "llm_calls": [10]}
+{"label": "current", "mode": "service", "profile": "p2_01_NVDA", "e2": "cold", "e3": "on", "n": 5, "median": 21.9998, "min": 21.9108, "max": 22.1999, "p95": 22.1999, "llm_calls": [10]}
+{"label": "current", "mode": "worker", "profile": "p2_01_NVDA", "e2": "cold", "e3": "on", "n": 5, "median": 22.0088, "min": 21.9672, "max": 22.0973, "p95": 22.0973, "llm_calls": [10]}

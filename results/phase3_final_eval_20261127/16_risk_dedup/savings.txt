@@ -1,0 +1,22 @@
+Offline measurement on the live F1 run's real text (no model calls). Gemini tokens = chars / that agent's
+chars-per-token ratio, calibrated as rebuilt-before-prompt chars / the input tokens Gemini reported live.
+
+agent                  before ch  after ch saved ch    words b/a live in tok ch/tok est tok saved
+Bull Researcher            16371     16371        0    2296/2296        4284   3.82             0
+Bear Researcher            18533     18533        0    2630/2630        4799   3.86             0
+Aggressive Analyst         17593     17593        0    2480/2480        4561   3.86             0
+Conservative Analyst       20752     19104     1648    2984/2723        5332   3.89           423
+Neutral Analyst            24218     20784     3434    3517/2981        6082   3.98           862
+
+estimated input tokens saved per four-analyst run: 1285 (2.5% of the live run's 52,260)
+estimated cost saved per run at $0.30/M input: $0.000385 (1.1% of $0.034445)
+every argument now appears at most once per prompt; final debate states identical before and after: True
+Bull, Bear and Aggressive prompts identical before and after: True
+
+copies of each live argument per prompt (before -> after):
+  before Aggressive Analyst    {'aggressive': 0, 'conservative': 0}
+  before Conservative Analyst  {'aggressive': 2, 'conservative': 0}
+  before Neutral Analyst       {'aggressive': 2, 'conservative': 2}
+  after  Aggressive Analyst    {'aggressive': 0, 'conservative': 0}
+  after  Conservative Analyst  {'aggressive': 1, 'conservative': 0}
+  after  Neutral Analyst       {'aggressive': 1, 'conservative': 1}

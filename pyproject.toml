@@ -39,6 +39,22 @@ dev = [
 # E3: Optional Langfuse tracing and cost monitoring
 e3 = [
     "langfuse>=3.0,<5.0",
+    # Langfuse's LangChain callback (used by E3) imports the full langchain package, not only langchain-core.
+    "langchain>=1.5,<2",
+]
+# F1 (Phase 3): Streamlit dashboard with human-approved Alpaca paper trading
+dashboard = [
+    "streamlit>=1.50,<2",
+    "alpaca-py>=0.40,<1",
+]
+# F2 (Phase 3): MCP server exposing the read-only analyze_stock tool
+mcp = [
+    "fastmcp>=4.2,<5",
+]
+# Testing only: the live dashboard test drives a headless Chromium (scripts/smoke/live_dashboard.py).
+# Never needed to run the app. Set up with scripts/smoke/setup_playwright.sh (see PHASE3_SMOKE_TESTS.md).
+e2e = [
+    "playwright==1.52.0",
 ]
 # Amazon Bedrock support (AWS SigV4 auth + boto3). Optional so the core install
 # stays lean: pip install "tradingagents[bedrock]".
@@ -48,6 +64,8 @@ bedrock = [
 
 [project.scripts]
 tradingagents = "cli.main:app"
+tradingagents-dashboard = "tradingagents.dashboard.launch:main"
+tradingagents-mcp = "tradingagents.mcp_server:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "tradingagents.__version__"}

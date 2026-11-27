@@ -1,0 +1,7 @@
+{"label": "phase2", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1435, "min": 0.1201, "max": 0.231, "p95": 0.205, "llm_calls": [10]}
+{"label": "phase2", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "off", "n": 30, "median": 0.1321, "min": 0.1014, "max": 0.1959, "p95": 0.1824, "llm_calls": [10]}
+{"label": "committed", "mode": "service", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.153, "min": 0.1362, "max": 0.2517, "p95": 0.2308, "llm_calls": [10]}
+{"label": "committed", "mode": "worker", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1979, "min": 0.1429, "max": 0.3122, "p95": 0.2855, "llm_calls": [10]}
+{"label": "current", "mode": "graph", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1579, "min": 0.129, "max": 0.2437, "p95": 0.2263, "llm_calls": [10]}
+{"label": "current", "mode": "service", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1503, "min": 0.1145, "max": 0.218, "p95": 0.2082, "llm_calls": [10]}
+{"label": "current", "mode": "worker", "profile": "zero", "e2": "cold", "e3": "on", "n": 30, "median": 0.1848, "min": 0.1478, "max": 0.2132, "p95": 0.2087, "llm_calls": [10]}

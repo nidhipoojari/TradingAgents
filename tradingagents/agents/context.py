@@ -48,6 +48,20 @@ def opponent_argument_or_opening(text: str, opponent: str) -> str:
     return f"(The {opponent} has not spoken yet — open the debate with your own case.)"
 
 
+ALREADY_IN_HISTORY = "(Already included in debate history.)"
+
+
+def latest_argument_unless_in_history(argument: str, history: str) -> str:
+    """The opponent's latest argument, or a short reference when the debate history already holds it verbatim.
+
+    Every debater appends its argument to ``history`` and also passes it on as the ``current_*`` response, so the
+    next speaker would otherwise receive it twice. Only an exact copy is replaced: an argument missing from
+    ``history`` (empty or incomplete history), or an opening marker, is kept in full.
+    """
+    text = (argument or "").strip()
+    return ALREADY_IN_HISTORY if text and text in (history or "") else argument
+
+
 def _clean_identity_value(value: Any) -> str | None:
     """Return a trimmed string, or None for empty / placeholder-ish values."""
     if not isinstance(value, str):

@@ -227,3 +227,26 @@ def test_recorded_calls_carry_start_offsets():
     callback._finish("r", input_tokens=1, output_tokens=1)
 
     assert callback.records[0]["start_offset_ms"] >= 0
+
+
+def test_the_cost_note_names_the_real_reason_an_estimate_is_missing():
+    """Live run 20261127-111852-5a8696f8: one failed 429 call reported no tokens, but the note asked for pricing
+    "for every model", which was already supplied."""
+    pricing = {"m": {"input_per_million_usd": 0.3, "output_per_million_usd": 2.5}}
+    callback = E3MetricsCallback()
+    callback.records = [
+        {"agent": "Portfolio Manager", "model": "m", "latency_ms": 503.0, "input_tokens": None, "output_tokens": None,
+         "error": "429 RESOURCE_EXHAUSTED"},
+        {"agent": "Portfolio Manager", "model": "m", "latency_ms": 2970.0, "input_tokens": 2283, "output_tokens": 349,
+         "error": None},
+        {"agent": "Trader", "model": "unpriced-model", "latency_ms": 1.0, "input_tokens": 10, "output_tokens": 1,
+         "error": None},
+    ]
+    result = callback.summary(ticker="NVDA", analysis_date="2026-10-23", status="success", wall_time_seconds=1.0,
+                              pricing=pricing)
+    assert result["estimated_cost_usd"] is None and result["unpriced_llm_calls"] == 2        # Phase 2 fields unchanged
+    assert result["cost_note"] == ("Not calculated: 1 call(s) reported no token usage (no tokens are assumed for "
+                                   "them); 1 call(s) used a model with no price in the pricing file.")
+    assert result["tokens_reported"]["calls_without_usage"] == 1
+    assert result["per_call"][0]["usage_reported"] is False and result["per_call"][0]["input_tokens"] is None
+    assert "supply pricing" not in result["cost_note"]

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "tradingagents": {
+      "type": "stdio",
+      "command": "/home/sbhat/Projects/TradingAgents-cli-startup/.venv/bin/tradingagents-mcp",
+      "args": [],
+      "env": {
+        "TRADINGAGENTS_RESULTS_DIR": "/home/sbhat/.tradingagents/logs",
+        "TRADINGAGENTS_E2_CACHE": "true",
+        "ALPACA_API_KEY": "",
+        "ALPACA_SECRET_KEY": ""
+      }
+    }
+  }
+}

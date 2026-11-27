@@ -1,0 +1,91 @@
+{
+  "work_dir": "/tmp/consistency-bf1ygwrn",
+  "outcome": {
+    "cli": "ok",
+    "dashboard": "ok",
+    "mcp": "ok"
+  },
+  "rows": {
+    "cli": {
+      "status": "completed",
+      "ticker": "NVDA",
+      "trade_date": "2026-01-09",
+      "analysts": [
+        "market"
+      ],
+      "rating": "Overweight",
+      "llm_calls": 10,
+      "tool_calls": 3,
+      "tokens_in": 1000,
+      "tokens_out": 200,
+      "decision_sha": "fca91a9e8081",
+      "e2_cache": {
+        "hits": 0,
+        "misses": 2,
+        "skipped": 0,
+        "hit_rate_pct": 0.0
+      },
+      "estimated_cost_usd": 0.00018,
+      "e3_summary_linked": true,
+      "record_keys": 18
+    },
+    "dashboard": {
+      "status": "completed",
+      "ticker": "NVDA",
+      "trade_date": "2026-01-09",
+      "analysts": [
+        "market"
+      ],
+      "rating": "Overweight",
+      "llm_calls": 10,
+      "tool_calls": 3,
+      "tokens_in": 1000,
+      "tokens_out": 200,
+      "decision_sha": "fca91a9e8081",
+      "e2_cache": {
+        "hits": 2,
+        "misses": 0,
+        "skipped": 0,
+        "hit_rate_pct": 100.0
+      },
+      "estimated_cost_usd": 0.00018,
+      "e3_summary_linked": true,
+      "record_keys": 18
+    },
+    "mcp": {
+      "status": "completed",
+      "ticker": "NVDA",
+      "trade_date": "2026-01-09",
+      "analysts": [
+        "market"
+      ],
+      "rating": "Overweight",
+      "llm_calls": 10,
+      "tool_calls": 3,
+      "tokens_in": 1000,
+      "tokens_out": 200,
+      "decision_sha": "fca91a9e8081",
+      "e2_cache": {
+        "hits": 2,
+        "misses": 0,
+        "skipped": 0,
+        "hit_rate_pct": 100.0
+      },
+      "estimated_cost_usd": 0.00018,
+      "e3_summary_linked": true,
+      "record_keys": 18
+    }
+  },
+  "identical": {
+    "status": true,
+    "ticker": true,
+    "trade_date": true,
+    "analysts": true,
+    "rating": true,
+    "llm_calls": true,
+    "tool_calls": true,
+    "tokens_in": true,
+    "tokens_out": true,
+    "decision_sha": true
+  }
+}

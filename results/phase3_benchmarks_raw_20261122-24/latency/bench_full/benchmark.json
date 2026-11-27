@@ -1,0 +1,306 @@
+{
+ "profiles": {
+  "10-call": {
+   "source": "results/phase3_smoke/20261122_225216/e3/NVDA_2026-10-23_20261122-225220-bf036521_e3.json",
+   "market_tool_rounds": 1,
+   "data_seconds_per_tool": 0.26,
+   "reference_wall_seconds": 25.805,
+   "llm_seconds": 24.12
+  },
+  "12-call": {
+   "source": "consistency_evaluation/nvda_live/run_1/e3/NVDA_2026-10-23_27d3d8aa_e3.json",
+   "market_tool_rounds": 3,
+   "data_seconds_per_tool": 4.443,
+   "reference_wall_seconds": 40.64,
+   "llm_seconds": 26.41
+  }
+ },
+ "scenarios": {
+  "10-call, warm worker, E2 cold": {
+   "n": 5,
+   "median": 24.52,
+   "p95": 24.57,
+   "max": 24.57,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 0.39,
+   "runs": [
+    {
+     "seconds": 24.52,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.54,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.52,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.57,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.52,
+     "outcome": "completed",
+     "llm_calls": 10
+    }
+   ]
+  },
+  "10-call, warm worker, E2 warm": {
+   "n": 3,
+   "median": 24.28,
+   "p95": 24.32,
+   "max": 24.32,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 0.16,
+   "runs": [
+    {
+     "seconds": 24.27,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.28,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 24.32,
+     "outcome": "completed",
+     "llm_calls": 10
+    }
+   ]
+  },
+  "10-call, cold worker, E2 cold": {
+   "n": 3,
+   "median": 25.83,
+   "p95": 25.92,
+   "max": 25.92,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 1.7,
+   "runs": [
+    {
+     "seconds": 25.92,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 25.77,
+     "outcome": "completed",
+     "llm_calls": 10
+    },
+    {
+     "seconds": 25.83,
+     "outcome": "completed",
+     "llm_calls": 10
+    }
+   ]
+  },
+  "12-call, warm worker, E2 cold (live-data delays)": {
+   "n": 5,
+   "median": 35.51,
+   "p95": 35.54,
+   "max": 35.54,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 9.1,
+   "runs": [
+    {
+     "seconds": 35.54,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 35.5,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 35.51,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 35.48,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 35.52,
+     "outcome": "completed",
+     "llm_calls": 12
+    }
+   ]
+  },
+  "12-call, warm worker, E2 warm": {
+   "n": 3,
+   "median": 26.61,
+   "p95": 26.61,
+   "max": 26.61,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 0.2,
+   "runs": [
+    {
+     "seconds": 26.61,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 26.61,
+     "outcome": "completed",
+     "llm_calls": 12
+    },
+    {
+     "seconds": 26.58,
+     "outcome": "completed",
+     "llm_calls": 12
+    }
+   ]
+  },
+  "10-call, primary 503 then backup succeeds": {
+   "n": 3,
+   "median": 40.36,
+   "p95": 40.37,
+   "max": 40.37,
+   "outcomes": [
+    "budget_exceeded"
+   ],
+   "runs": [
+    {
+     "seconds": 40.32,
+     "outcome": "budget_exceeded",
+     "llm_calls": null
+    },
+    {
+     "seconds": 40.37,
+     "outcome": "budget_exceeded",
+     "llm_calls": null
+    },
+    {
+     "seconds": 40.36,
+     "outcome": "budget_exceeded",
+     "llm_calls": null
+    }
+   ]
+  },
+  "10-call, primary and backup 503": {
+   "n": 3,
+   "median": 10.18,
+   "p95": 10.37,
+   "max": 10.37,
+   "outcomes": [
+    "failed (provider_unavailable)"
+   ],
+   "runs": [
+    {
+     "seconds": 10.18,
+     "outcome": "failed (provider_unavailable)",
+     "llm_calls": null
+    },
+    {
+     "seconds": 10.37,
+     "outcome": "failed (provider_unavailable)",
+     "llm_calls": null
+    },
+    {
+     "seconds": 10.04,
+     "outcome": "failed (provider_unavailable)",
+     "llm_calls": null
+    }
+   ]
+  },
+  "12-call, cancelled after 5 s": {
+   "n": 3,
+   "median": 5.41,
+   "p95": 5.45,
+   "max": 5.45,
+   "outcomes": [
+    "cancelled"
+   ],
+   "runs": [
+    {
+     "seconds": 5.45,
+     "outcome": "cancelled",
+     "llm_calls": null
+    },
+    {
+     "seconds": 5.41,
+     "outcome": "cancelled",
+     "llm_calls": null
+    },
+    {
+     "seconds": 5.41,
+     "outcome": "cancelled",
+     "llm_calls": null
+    }
+   ]
+  },
+  "12-call, 20 s analysis deadline": {
+   "n": 2,
+   "median": 21.96,
+   "p95": 23.89,
+   "max": 23.89,
+   "outcomes": [
+    "deadline_exceeded (analysis)"
+   ],
+   "runs": [
+    {
+     "seconds": 20.04,
+     "outcome": "deadline_exceeded (analysis)",
+     "llm_calls": null
+    },
+    {
+     "seconds": 23.89,
+     "outcome": "deadline_exceeded (analysis)",
+     "llm_calls": null
+    }
+   ]
+  },
+  "hung primary (defaults: 60 s step deadline)": {
+   "n": 1,
+   "median": 67.13,
+   "p95": 67.13,
+   "max": 67.13,
+   "outcomes": [
+    "deadline_exceeded (step)"
+   ],
+   "runs": [
+    {
+     "seconds": 67.13,
+     "outcome": "deadline_exceeded (step)",
+     "llm_calls": null
+    }
+   ]
+  },
+  "primary 503, hung backup (defaults)": {
+   "n": 1,
+   "median": 67.08,
+   "p95": 67.08,
+   "max": 67.08,
+   "outcomes": [
+    "deadline_exceeded (step)"
+   ],
+   "runs": [
+    {
+     "seconds": 67.08,
+     "outcome": "deadline_exceeded (step)",
+     "llm_calls": null
+    }
+   ]
+  }
+ }
+}

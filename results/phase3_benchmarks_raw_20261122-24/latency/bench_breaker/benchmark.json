@@ -1,0 +1,100 @@
+{
+ "profiles": {
+  "10-call": {
+   "source": "results/phase3_smoke/20261122_225216/e3/NVDA_2026-10-23_20261122-225220-bf036521_e3.json",
+   "market_tool_rounds": 1,
+   "data_seconds_per_tool": 0.26,
+   "reference_wall_seconds": 25.805,
+   "llm_seconds": 24.12
+  },
+  "12-call": {
+   "source": "consistency_evaluation/nvda_live/run_1/e3/NVDA_2026-10-23_27d3d8aa_e3.json",
+   "market_tool_rounds": 3,
+   "data_seconds_per_tool": 4.443,
+   "reference_wall_seconds": 40.64,
+   "llm_seconds": 26.41
+  }
+ },
+ "scenarios": {
+  "12-call, primary 503 on its first 2 calls, backup covers them": {
+   "n": 3,
+   "median": 41.3,
+   "p95": 41.39,
+   "max": 41.39,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 14.89,
+   "runs": [
+    {
+     "seconds": 41.28,
+     "outcome": "completed",
+     "llm_calls": 14
+    },
+    {
+     "seconds": 41.3,
+     "outcome": "completed",
+     "llm_calls": 14
+    },
+    {
+     "seconds": 41.39,
+     "outcome": "completed",
+     "llm_calls": 14
+    }
+   ]
+  },
+  "10-call, every primary call 503, backup answers": {
+   "n": 3,
+   "median": 27.44,
+   "p95": 27.49,
+   "max": 27.49,
+   "outcomes": [
+    "completed"
+   ],
+   "runs": [
+    {
+     "seconds": 27.44,
+     "outcome": "completed",
+     "llm_calls": 11
+    },
+    {
+     "seconds": 27.43,
+     "outcome": "completed",
+     "llm_calls": 11
+    },
+    {
+     "seconds": 27.49,
+     "outcome": "completed",
+     "llm_calls": 11
+    }
+   ]
+  },
+  "10-call, primary 503 on its first 2 calls, backup covers them": {
+   "n": 3,
+   "median": 27.5,
+   "p95": 27.52,
+   "max": 27.52,
+   "outcomes": [
+    "completed"
+   ],
+   "non_model_seconds_median": 3.38,
+   "runs": [
+    {
+     "seconds": 27.52,
+     "outcome": "completed",
+     "llm_calls": 11
+    },
+    {
+     "seconds": 27.5,
+     "outcome": "completed",
+     "llm_calls": 11
+    },
+    {
+     "seconds": 27.44,
+     "outcome": "completed",
+     "llm_calls": 11
+    }
+   ]
+  }
+ }
+}

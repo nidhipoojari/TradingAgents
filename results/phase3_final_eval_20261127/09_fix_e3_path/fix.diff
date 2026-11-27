@@ -1,0 +1,6 @@
+105c105,107
+<         "e3_summary_path": str(e3_summary_path) if e3_summary_path else None,
+---
+>         # Absolute: E3 saves under a folder relative to the writer's working directory by default, and a reader
+>         # (the MCP server, another process) may run from elsewhere.
+>         "e3_summary_path": str(Path(e3_summary_path).absolute()) if e3_summary_path else None,

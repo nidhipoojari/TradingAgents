@@ -1,0 +1,22 @@
+run 1: ======================= 22 passed, 10 warnings in 53.70s =======================
+run 2: ======================= 22 passed, 10 warnings in 53.67s =======================
+run 3: ======================= 22 passed, 10 warnings in 45.06s =======================
+run 4: ======================= 22 passed, 10 warnings in 47.79s =======================
+run 5: ======================= 22 passed, 11 warnings in 49.09s =======================
+run 6: ======================= 22 passed, 10 warnings in 48.27s =======================
+run 7: ======================= 22 passed, 10 warnings in 45.92s =======================
+run 8: ======================= 22 passed, 11 warnings in 48.14s =======================
+step 185.7 run 1: 
+step 185.7 run 2: 
+step -185.7 run 1: 
+step -185.7 run 2: 
+(the 4 lines above with no result: plugin not found, scratchpad cleared by the crash; rerun below)
+step 185.7 rerun 1: clock_step: +185.7 s, 0.3 s into each test; tradingagents im | ======================= 22 passed, 10 warnings in 51.51s =======================
+step 185.7 rerun 2: clock_step: +185.7 s, 0.3 s into each test; tradingagents im | ======================= 22 passed, 10 warnings in 46.74s =======================
+step -185.7 rerun 1: clock_step: -185.7 s, 0.3 s into each test; tradingagents im | ======================= 22 passed, 10 warnings in 45.45s =======================
+step -185.7 rerun 2: clock_step: -185.7 s, 0.3 s into each test; tradingagents im | ======================= 22 passed, 10 warnings in 45.31s =======================
+--- persistent plugin (tests/plugins), 2026-11-25_14:46:39
+step 185.7 persistent-plugin run 1: exit 0 (STARTED, all passed) | ======================= 22 passed, 10 warnings in 47.53s =======================
+step 185.7 persistent-plugin run 2: exit 0 (STARTED, all passed) | ======================= 22 passed, 10 warnings in 50.52s =======================
+step -185.7 persistent-plugin run 1: exit 0 (STARTED, all passed) | ======================= 22 passed, 10 warnings in 51.59s =======================
+step -185.7 persistent-plugin run 2: exit 0 (STARTED, all passed) | ======================= 22 passed, 10 warnings in 46.06s =======================

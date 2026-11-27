@@ -1,0 +1,25 @@
+{"pid": 277072, "mono": 137218.086, "event": "adopted", "elapsed": 1.316, "handoff": 1.3159228999866173}
+{"pid": 277072, "mono": 137218.088, "event": "run_analysis", "elapsed": 1.318, "cancel_set": false}
+{"pid": 277072, "mono": 137218.091, "event": "sdk_retry_observer_ready", "seconds": 0.003}
+{"pid": 277072, "mono": 137218.091, "event": "_run_locked", "elapsed": 1.321}
+{"pid": 277072, "mono": 137218.48, "event": "first_cancel_check", "elapsed": 1.71, "cancel_set": false}
+{"pid": 277097, "mono": 137229.196, "event": "adopted", "elapsed": 5.577, "handoff": 5.5767455759923905}
+{"pid": 277097, "mono": 137229.198, "event": "run_analysis", "elapsed": 5.578, "cancel_set": false}
+{"pid": 277097, "mono": 137229.2, "event": "sdk_retry_observer_ready", "seconds": 0.001}
+{"pid": 277097, "mono": 137229.2, "event": "_run_locked", "elapsed": 5.58}
+{"pid": 277097, "mono": 137229.707, "event": "first_cancel_check", "elapsed": 6.088, "cancel_set": false}
+{"pid": 277150, "mono": 137236.591, "event": "adopted", "elapsed": 0.001, "handoff": 0.0012437069963198155}
+{"pid": 277150, "mono": 137236.595, "event": "run_analysis", "elapsed": 0.005, "cancel_set": false}
+{"pid": 277150, "mono": 137236.597, "event": "sdk_retry_observer_ready", "seconds": 0.002}
+{"pid": 277150, "mono": 137236.597, "event": "_run_locked", "elapsed": 0.007}
+{"pid": 277150, "mono": 137237.04, "event": "first_cancel_check", "elapsed": 0.45, "cancel_set": false}
+{"pid": 277177, "mono": 137248.241, "event": "adopted", "elapsed": 0.0, "handoff": 0.0004370909882709384}
+{"pid": 277177, "mono": 137248.243, "event": "run_analysis", "elapsed": 0.002, "cancel_set": false}
+{"pid": 277177, "mono": 137248.244, "event": "sdk_retry_observer_ready", "seconds": 0.001}
+{"pid": 277177, "mono": 137248.244, "event": "_run_locked", "elapsed": 0.004}
+{"pid": 277177, "mono": 137248.597, "event": "first_cancel_check", "elapsed": 0.356, "cancel_set": false}
+{"pid": 277096, "mono": 137257.836, "event": "adopted", "elapsed": 0.003, "handoff": 0.0005166710179764777}
+{"pid": 277096, "mono": 137257.858, "event": "run_analysis", "elapsed": 0.027, "cancel_set": false}
+{"pid": 277096, "mono": 137257.883, "event": "sdk_retry_observer_ready", "seconds": 0.024}
+{"pid": 277096, "mono": 137257.884, "event": "_run_locked", "elapsed": 0.053}
+{"pid": 277096, "mono": 137259.07, "event": "first_cancel_check", "elapsed": 1.239, "cancel_set": true}
